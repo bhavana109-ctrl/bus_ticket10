@@ -3,239 +3,301 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Payment - Bus Booking</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <title>Payment - BusHub</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <style>
-        .payment-card {
-            background: white;
-            border-radius: 15px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
-            overflow: hidden;
-        }
-        .payment-header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 2rem;
-            text-align: center;
-        }
-        .booking-summary {
-            background: #f8f9fa;
-            padding: 1.5rem;
-            border-radius: 10px;
-            margin-bottom: 2rem;
-        }
-        .payment-methods {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 1rem;
-            margin-bottom: 2rem;
-        }
-        .payment-method {
-            border: 2px solid #dee2e6;
-            border-radius: 10px;
-            padding: 1rem;
-            text-align: center;
-            cursor: pointer;
-            transition: all 0.3s;
-        }
-        .payment-method:hover {
-            border-color: #007bff;
-            background: #f8f9ff;
-        }
-        .payment-method.selected {
-            border-color: #007bff;
-            background: #e7f3ff;
-        }
-        .payment-method i {
-            font-size: 2rem;
-            margin-bottom: 0.5rem;
-            color: #007bff;
-        }
-    </style>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-    <div class="container">
-        <div class="row justify-content-center">
-            <div class="col-md-8">
-                <div class="payment-card">
-                    <div class="payment-header">
-                        <i class="fas fa-credit-card fa-3x mb-3"></i>
-                        <h3>Complete Your Payment</h3>
-                        <p>Secure payment for your bus booking</p>
-                    </div>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container">
+            <a class="navbar-brand fw-bold" href="{{ url_for('user.search') }}">
+                <i class="fas fa-bus me-2"></i>BusHub
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('user.search') }}">
+                            <i class="fas fa-search me-1"></i>Search
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('user.booking_history') }}">
+                            <i class="fas fa-history me-1"></i>My Bookings
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('auth.logout') }}">
+                            <i class="fas fa-sign-out-alt me-1"></i>Logout
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
 
-                    <div class="p-4">
-                        <!-- Booking Summary -->
-                        <div class="booking-summary">
-                            <h5 class="mb-3"><i class="fas fa-info-circle"></i> Booking Summary</h5>
-                            <div class="row">
-                                <div class="col-md-6">
-                                    <p><strong>Bus:</strong> {{ booking.bus_name }}</p>
-                                    <p><strong>Route:</strong> {{ booking.source }} → {{ booking.destination }}</p>
-                                    <p><strong>Date:</strong> {{ booking.travel_date }}</p>
-                                </div>
-                                <div class="col-md-6">
-                                    <p><strong>Seats:</strong> {{ booking.seats }}</p>
-                                    <p><strong>Passenger:</strong> {{ booking.passenger_name }}</p>
-                                    <p><strong>Booking ID:</strong> {{ booking.booking_id }}</p>
-                                </div>
+    <div class="container py-5">
+        <div class="row justify-content-center">
+            <div class="col-lg-8">
+                <!-- Booking Summary -->
+                <div class="card mb-4">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0">
+                            <i class="fas fa-receipt me-2"></i>Booking Summary
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-8">
+                                <h6 class="text-primary">{{ bus.bus_name }}</h6>
+                                <p class="mb-1">
+                                    <i class="fas fa-route me-2"></i>
+                                    {{ bus.source }} → {{ bus.destination }}
+                                </p>
+                                <p class="mb-1">
+                                    <i class="fas fa-calendar me-2"></i>{{ bus.travel_date }} |
+                                    <i class="fas fa-clock me-2"></i>{{ bus.departure_time }} - {{ bus.arrival_time }}
+                                </p>
+                                <p class="mb-1">
+                                    <i class="fas fa-chair me-2"></i>Seats: {{ selected_seats|join(', ') }}
+                                </p>
+                                <p class="mb-1">
+                                    <i class="fas fa-map-marker-alt me-2"></i>Boarding: {{ boarding_point }}
+                                </p>
+                                <p class="mb-1">
+                                    <i class="fas fa-map-marker me-2"></i>Dropping: {{ dropping_point }}
+                                </p>
                             </div>
-                            <hr>
-                            <div class="text-end">
-                                <h4 class="text-primary">Total: ₹{{ "%.2f"|format(booking.total_amount) }}</h4>
+                            <div class="col-md-4 text-md-end">
+                                <div class="h4 text-success">₹{{ total_amount }}</div>
+                                <small class="text-muted">{{ selected_seats|length }} seat{{ 's' if selected_seats|length > 1 else '' }}</small>
                             </div>
                         </div>
+                    </div>
+                </div>
 
-                        <!-- Payment Methods -->
-                        <h5 class="mb-3"><i class="fas fa-wallet"></i> Choose Payment Method</h5>
-                        <form id="paymentForm" method="POST" action="/process_payment/{{ booking.id }}">
-                            <div class="payment-methods">
-                                <div class="payment-method" data-method="card">
-                                    <input type="radio" name="payment_method" value="card" style="display: none;">
-                                    <i class="fas fa-credit-card"></i>
-                                    <div>Credit/Debit Card</div>
+                <!-- Payment Options -->
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="fas fa-credit-card me-2"></i>Payment Method
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <form method="POST" id="paymentForm">
+                            <div class="row g-3">
+                                <!-- Payment Methods -->
+                                <div class="col-12">
+                                    <label class="form-label">Select Payment Method</label>
+                                    <div class="payment-methods">
+                                        <div class="form-check payment-option">
+                                            <input class="form-check-input" type="radio" name="payment_method"
+                                                   id="upi" value="UPI" required>
+                                            <label class="form-check-label" for="upi">
+                                                <div class="payment-icon">
+                                                    <i class="fas fa-mobile-alt"></i>
+                                                </div>
+                                                <div class="payment-details">
+                                                    <div class="payment-name">UPI</div>
+                                                    <div class="payment-desc">Paytm, Google Pay, PhonePe</div>
+                                                </div>
+                                            </label>
+                                        </div>
+
+                                        <div class="form-check payment-option">
+                                            <input class="form-check-input" type="radio" name="payment_method"
+                                                   id="card" value="Credit/Debit Card">
+                                            <label class="form-check-label" for="card">
+                                                <div class="payment-icon">
+                                                    <i class="fas fa-credit-card"></i>
+                                                </div>
+                                                <div class="payment-details">
+                                                    <div class="payment-name">Credit/Debit Card</div>
+                                                    <div class="payment-desc">Visa, MasterCard, RuPay</div>
+                                                </div>
+                                            </label>
+                                        </div>
+
+                                        <div class="form-check payment-option">
+                                            <input class="form-check-input" type="radio" name="payment_method"
+                                                   id="netbanking" value="Net Banking">
+                                            <label class="form-check-label" for="netbanking">
+                                                <div class="payment-icon">
+                                                    <i class="fas fa-university"></i>
+                                                </div>
+                                                <div class="payment-details">
+                                                    <div class="payment-name">Net Banking</div>
+                                                    <div class="payment-desc">All major banks</div>
+                                                </div>
+                                            </label>
+                                        </div>
+                                    </div>
                                 </div>
-                                <div class="payment-method" data-method="upi">
-                                    <input type="radio" name="payment_method" value="upi" style="display: none;">
-                                    <i class="fas fa-mobile-alt"></i>
-                                    <div>UPI</div>
-                                </div>
-                                <div class="payment-method" data-method="netbanking">
-                                    <input type="radio" name="payment_method" value="netbanking" style="display: none;">
-                                    <i class="fas fa-university"></i>
-                                    <div>Net Banking</div>
-                                </div>
-                                <div class="payment-method" data-method="wallet">
-                                    <input type="radio" name="payment_method" value="wallet" style="display: none;">
-                                    <i class="fas fa-wallet"></i>
-                                    <div>Digital Wallet</div>
+
+                                <!-- Terms and Conditions -->
+                                <div class="col-12">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="terms" required>
+                                        <label class="form-check-label" for="terms">
+                                            I agree to the <a href="#" class="text-primary">Terms and Conditions</a> and <a href="#" class="text-primary">Cancellation Policy</a>
+                                        </label>
+                                    </div>
                                 </div>
                             </div>
 
-                            <!-- Payment Button -->
-                            <div class="text-center">
-                                <button type="button" class="btn btn-secondary me-2" onclick="history.back()">
-                                    <i class="fas fa-arrow-left"></i> Back
-                                </button>
-                                <button type="submit" class="btn btn-success btn-lg" id="payBtn" disabled>
-                                    <i class="fas fa-lock"></i> Pay ₹{{ "%.2f"|format(booking.total_amount) }}
+                            <!-- Action Buttons -->
+                            <div class="text-center mt-4">
+                                <a href="{{ url_for('user.select_seats', bus_id=bus.id) }}" class="btn btn-outline-secondary me-3">
+                                    <i class="fas fa-arrow-left me-1"></i>Back to Seats
+                                </a>
+                                <button type="submit" class="btn btn-success btn-lg" id="payBtn">
+                                    <i class="fas fa-lock me-2"></i>Pay ₹{{ total_amount }}
                                 </button>
                             </div>
                         </form>
-
-                        <!-- Security Notice -->
-                        <div class="alert alert-info mt-4">
-                            <i class="fas fa-shield-alt"></i>
-                            <strong>Secure Payment:</strong> Your payment information is encrypted and secure.
-                            We use industry-standard security measures to protect your data.
-                        </div>
                     </div>
+                </div>
+
+                <!-- Security Notice -->
+                <div class="alert alert-info mt-4">
+                    <i class="fas fa-shield-alt me-2"></i>
+                    <strong>Secure Payment:</strong> Your payment information is encrypted and secure.
+                    We use industry-standard SSL encryption to protect your data.
                 </div>
             </div>
         </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
+        // Payment form handling
+        document.getElementById('paymentForm').addEventListener('submit', function(e) {
+            // Validate form
+            if (!this.checkValidity()) {
+                e.preventDefault();
+                e.stopPropagation();
+                this.classList.add('was-validated');
+                alert('Please complete all required fields.');
+                return false;
+            }
+
+            // Validate payment method is selected
+            const paymentMethod = document.querySelector('input[name="payment_method"]:checked');
+            if (!paymentMethod) {
+                e.preventDefault();
+                e.stopPropagation();
+                alert('Please select a payment method.');
+                return false;
+            }
+
+            // Validate terms accepted
+            const termsCheckbox = document.getElementById('terms');
+            if (!termsCheckbox || !termsCheckbox.checked) {
+                e.preventDefault();
+                e.stopPropagation();
+                alert('Please accept the terms and conditions.');
+                return false;
+            }
+
+            const payBtn = document.getElementById('payBtn');
+            const originalText = payBtn.innerHTML;
+
+            // Show loading state
+            payBtn.disabled = true;
+            payBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Processing...';
+
+            // Allow form submission to proceed normally
+            // The server will handle the actual payment processing
+        });
+
         // Payment method selection
-        const paymentMethods = document.querySelectorAll('.payment-method');
-        const payBtn = document.getElementById('payBtn');
-        const paymentForm = document.getElementById('paymentForm');
+        document.querySelectorAll('input[name="payment_method"]').forEach(radio => {
+            radio.addEventListener('change', function() {
+                // Remove selected class from all options
+                document.querySelectorAll('.payment-option').forEach(option => {
+                    option.classList.remove('selected');
+                });
 
-        paymentMethods.forEach(method => {
-            method.addEventListener('click', function() {
-                // Remove selected class from all methods
-                paymentMethods.forEach(m => m.classList.remove('selected'));
-
-                // Add selected class to clicked method
-                this.classList.add('selected');
-
-                // Check the radio button
-                const radio = this.querySelector('input[type="radio"]');
-                radio.checked = true;
-
-                // Enable pay button
-                payBtn.disabled = false;
+                // Add selected class to chosen option
+                if (this.checked) {
+                    this.closest('.payment-option').classList.add('selected');
+                }
             });
         });
 
-        // Form submission with loading state
-        paymentForm.addEventListener('submit', function(e) {
-            payBtn.disabled = true;
-            payBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
+        // Form reset on page load
+        window.addEventListener('load', function() {
+            document.getElementById('paymentForm').classList.remove('was-validated');
         });
     </script>
-</body>
-</html>
-      border-radius: 8px;
-      text-align: center;
-      font-size: 18px;
-      font-weight: bold;
-      color: #0b3d91;
-    }
 
-    button {
-      width: 100%;
-      padding: 14px;
-      font-size: 18px;            /* ✅ bigger button */
-      background: #0b3d91;
-      color: white;
-      border: none;
-      border-radius: 6px;
-      cursor: pointer;
-    }
+    <style>
+        .payment-methods {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
 
-    button:hover {
-      opacity: 0.9;
-    }
+        .payment-option {
+            border: 2px solid #e9ecef;
+            border-radius: 10px;
+            padding: 1rem;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
 
-    .hidden {
-      display: none;
-    }
-  </style>
-</head>
+        .payment-option:hover {
+            border-color: #007bff;
+            background-color: #f8f9ff;
+        }
 
-<body>
+        .payment-option.selected {
+            border-color: #007bff;
+            background-color: #e7f3ff;
+        }
 
-<header>Payment</header>
+        .payment-option label {
+            display: flex;
+            align-items: center;
+            margin-bottom: 0;
+            cursor: pointer;
+            width: 100%;
+        }
 
-<div class="container">
+        .payment-icon {
+            width: 50px;
+            height: 50px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 1.2rem;
+            margin-right: 1rem;
+        }
 
-  <label>Select Payment Method</label>
-  <select id="paymentMethod" onchange="showPaymentFields()">
-    <option value="upi">UPI</option>
-    <option value="debit">Debit Card</option>
-    <option value="credit">Credit Card</option>
-  </select>
+        .payment-details {
+            flex: 1;
+        }
 
-  <!-- UPI -->
-  <div id="upiField">
-    <label>UPI ID</label>
-    <input type="text" placeholder="example@upi">
-  </div>
+        .payment-name {
+            font-weight: 600;
+            color: #2c3e50;
+        }
 
-  <!-- Card -->
-  <div id="cardField" class="hidden">
-    <label>Card Number</label>
-    <input type="text" placeholder="XXXX XXXX XXXX XXXX">
+        .payment-desc {
+            font-size: 0.9rem;
+            color: #7f8c8d;
+        }
 
-    <label>Expiry Date</label>
-    <input type="month">
-
-    <label>CVV</label>
-    <input type="password" placeholder="***">
-  </div>
-
-  <!-- 💰 AMOUNT -->
-  <div class="amount-box" id="totalAmount">
-    Total Amount: ₹0
-  </div>
-
-  <button onclick="payNow()">Pay Now</button>
-
-</div>
-
-<script src="js/script.js"></script>
+        .form-check-input {
+            margin-top: 0.5rem;
+        }
+    </style>
 </body>
 </html>

@@ -1,18 +1,373 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Contact Us - BusHub</title>
-  <style>
-    body { font-family: Arial; text-align: center; padding: 50px; }
-    h1 { color: #ff4e00; }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Contact Us - BusHub</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-  <h1>Contact Us</h1>
-  <p>Email: support@bushub.com</p>
-  <p>Phone: +91-1234567890</p>
-  <a href="/">Back to Home</a>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container">
+            <a class="navbar-brand fw-bold" href="{{ url_for('index') }}">
+                <i class="fas fa-bus me-2"></i>BusHub
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('index') }}">Home</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('user.search') }}">Search Buses</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="{{ url_for('user.contact') }}">Contact</a>
+                    </li>
+                </ul>
+                <ul class="navbar-nav">
+                    {% if session.get('user_id') %}
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle" href="#" id="userDropdown" role="button" data-bs-toggle="dropdown">
+                                <i class="fas fa-user me-1"></i>{{ session.get('user_name', 'User') }}
+                            </a>
+                            <ul class="dropdown-menu">
+                                <li><a class="dropdown-item" href="{{ url_for('user.booking_history') }}">My Bookings</a></li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li><a class="dropdown-item" href="{{ url_for('auth.logout') }}">Logout</a></li>
+                            </ul>
+                        </li>
+                    {% else %}
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('auth.login') }}">Login</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('auth.register') }}">Register</a>
+                        </li>
+                    {% endif %}
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section class="hero-section bg-primary text-white py-5">
+        <div class="container">
+            <div class="row align-items-center">
+                <div class="col-lg-6">
+                    <h1 class="display-4 fw-bold mb-3">Get in Touch</h1>
+                    <p class="lead mb-4">
+                        Have questions about your booking? Need help with our services?
+                        We're here to help you 24/7.
+                    </p>
+                    <div class="d-flex gap-3">
+                        <a href="tel:+911234567890" class="btn btn-light btn-lg">
+                            <i class="fas fa-phone me-2"></i>Call Now
+                        </a>
+                        <a href="mailto:support@bushub.com" class="btn btn-outline-light btn-lg">
+                            <i class="fas fa-envelope me-2"></i>Email Us
+                        </a>
+                    </div>
+                </div>
+                <div class="col-lg-6 text-center">
+                    <i class="fas fa-headset fa-6x text-white opacity-75"></i>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <div class="container py-5">
+        <!-- Contact Information Cards -->
+        <div class="row mb-5">
+            <div class="col-md-4 mb-4">
+                <div class="card h-100 border-0 shadow-sm">
+                    <div class="card-body text-center p-4">
+                        <i class="fas fa-phone fa-3x text-primary mb-3"></i>
+                        <h5 class="card-title">Phone Support</h5>
+                        <p class="card-text text-muted">Call us for immediate assistance</p>
+                        <div class="mb-2">
+                            <strong>+91-1234567890</strong>
+                        </div>
+                        <small class="text-muted">24/7 Available</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4 mb-4">
+                <div class="card h-100 border-0 shadow-sm">
+                    <div class="card-body text-center p-4">
+                        <i class="fas fa-envelope fa-3x text-success mb-3"></i>
+                        <h5 class="card-title">Email Support</h5>
+                        <p class="card-text text-muted">Send us your queries via email</p>
+                        <div class="mb-2">
+                            <strong>support@bushub.com</strong>
+                        </div>
+                        <small class="text-muted">Response within 24 hours</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4 mb-4">
+                <div class="card h-100 border-0 shadow-sm">
+                    <div class="card-body text-center p-4">
+                        <i class="fas fa-map-marker-alt fa-3x text-danger mb-3"></i>
+                        <h5 class="card-title">Office Address</h5>
+                        <p class="card-text text-muted">Visit our office for in-person support</p>
+                        <div class="mb-2">
+                            <strong>BusHub Headquarters</strong><br>
+                            Tech Park, Kochi<br>
+                            Kerala, India - 682030
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row">
+            <!-- Contact Form -->
+            <div class="col-lg-8 mb-4">
+                <div class="card shadow">
+                    <div class="card-header bg-light">
+                        <h5 class="mb-0">
+                            <i class="fas fa-paper-plane me-2"></i>Send us a Message
+                        </h5>
+                    </div>
+                    <div class="card-body p-4">
+                        <!-- Flash Messages -->
+                        {% with messages = get_flashed_messages(with_categories=true) %}
+                            {% if messages %}
+                                {% for category, message in messages %}
+                                    <div class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible fade show">
+                                        {{ message }}
+                                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                                    </div>
+                                {% endfor %}
+                            {% endif %}
+                        {% endwith %}
+
+                        <form method="POST" id="contactForm">
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label for="name" class="form-label">
+                                        <i class="fas fa-user me-1"></i>Full Name *
+                                    </label>
+                                    <input type="text" class="form-control" id="name" name="name"
+                                           placeholder="Enter your full name" required>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label for="email" class="form-label">
+                                        <i class="fas fa-envelope me-1"></i>Email Address *
+                                    </label>
+                                    <input type="email" class="form-control" id="email" name="email"
+                                           placeholder="Enter your email address" required>
+                                </div>
+                            </div>
+
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label for="phone" class="form-label">
+                                        <i class="fas fa-phone me-1"></i>Phone Number
+                                    </label>
+                                    <input type="tel" class="form-control" id="phone" name="phone"
+                                           placeholder="Enter your phone number">
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label for="subject" class="form-label">
+                                        <i class="fas fa-tag me-1"></i>Subject *
+                                    </label>
+                                    <select class="form-select" id="subject" name="subject" required>
+                                        <option value="">Select a subject</option>
+                                        <option value="booking">Booking Related</option>
+                                        <option value="payment">Payment Issues</option>
+                                        <option value="refund">Refund Request</option>
+                                        <option value="technical">Technical Support</option>
+                                        <option value="feedback">Feedback</option>
+                                        <option value="other">Other</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="message" class="form-label">
+                                    <i class="fas fa-comment me-1"></i>Message *
+                                </label>
+                                <textarea class="form-control" id="message" name="message" rows="5"
+                                          placeholder="Please describe your query in detail..." required></textarea>
+                            </div>
+
+                            <div class="mb-3">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="newsletter" name="newsletter">
+                                    <label class="form-check-label" for="newsletter">
+                                        Subscribe to our newsletter for updates and offers
+                                    </label>
+                                </div>
+                            </div>
+
+                            <div class="text-center">
+                                <button type="submit" class="btn btn-primary btn-lg" id="submitBtn">
+                                    <i class="fas fa-paper-plane me-2"></i>Send Message
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <!-- FAQ Section -->
+            <div class="col-lg-4">
+                <div class="card shadow mb-4">
+                    <div class="card-header bg-light">
+                        <h6 class="mb-0">
+                            <i class="fas fa-question-circle me-2"></i>Frequently Asked Questions
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="accordion" id="faqAccordion">
+                            <div class="accordion-item">
+                                <h2 class="accordion-header">
+                                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faq1">
+                                        How do I book a bus ticket?
+                                    </button>
+                                </h2>
+                                <div id="faq1" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
+                                    <div class="accordion-body">
+                                        Search for buses, select your preferred bus, choose seats, and complete payment.
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="accordion-item">
+                                <h2 class="accordion-header">
+                                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faq2">
+                                        Can I cancel my booking?
+                                    </button>
+                                </h2>
+                                <div id="faq2" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
+                                    <div class="accordion-body">
+                                        Yes, you can cancel bookings from your dashboard. Cancellation charges may apply.
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="accordion-item">
+                                <h2 class="accordion-header">
+                                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faq3">
+                                        What payment methods are accepted?
+                                    </button>
+                                </h2>
+                                <div id="faq3" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
+                                    <div class="accordion-body">
+                                        We accept UPI, credit/debit cards, net banking, and digital wallets.
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Quick Links -->
+                <div class="card shadow">
+                    <div class="card-header bg-light">
+                        <h6 class="mb-0">
+                            <i class="fas fa-link me-2"></i>Quick Links
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <ul class="list-unstyled">
+                            <li class="mb-2">
+                                <a href="{{ url_for('user.search') }}" class="text-decoration-none">
+                                    <i class="fas fa-search me-2"></i>Search Buses
+                                </a>
+                            </li>
+                            <li class="mb-2">
+                                <a href="{{ url_for('user.booking_history') }}" class="text-decoration-none">
+                                    <i class="fas fa-history me-2"></i>My Bookings
+                                </a>
+                            </li>
+                            <li class="mb-2">
+                                <a href="#" class="text-decoration-none">
+                                    <i class="fas fa-file-alt me-2"></i>Terms & Conditions
+                                </a>
+                            </li>
+                            <li class="mb-2">
+                                <a href="#" class="text-decoration-none">
+                                    <i class="fas fa-shield-alt me-2"></i>Privacy Policy
+                                </a>
+                            </li>
+                            <li>
+                                <a href="#" class="text-decoration-none">
+                                    <i class="fas fa-question-circle me-2"></i>Help Center
+                                </a>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="bg-dark text-white py-4 mt-5">
+        <div class="container">
+            <div class="row">
+                <div class="col-md-6">
+                    <h5>BusHub</h5>
+                    <p>Your trusted partner for bus travel across India.</p>
+                </div>
+                <div class="col-md-6 text-md-end">
+                    <p class="mb-0">© 2024 BusHub. All rights reserved.</p>
+                    <div class="mt-2">
+                        <a href="#" class="text-white me-3"><i class="fab fa-facebook"></i></a>
+                        <a href="#" class="text-white me-3"><i class="fab fa-twitter"></i></a>
+                        <a href="#" class="text-white me-3"><i class="fab fa-instagram"></i></a>
+                        <a href="#" class="text-white"><i class="fab fa-linkedin"></i></a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Form submission
+        document.getElementById('contactForm').addEventListener('submit', function(e) {
+            const btn = document.getElementById('submitBtn');
+            const originalText = btn.innerHTML;
+
+            // Show loading state
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Sending...';
+
+            // Add timeout to prevent hanging
+            setTimeout(() => {
+                if (btn.disabled) {
+                    btn.disabled = false;
+                    btn.innerHTML = originalText;
+                }
+            }, 10000); // 10 second timeout
+        });
+
+        // Form validation
+        document.getElementById('name').addEventListener('blur', function() {
+            if (!this.value.trim()) {
+                this.setCustomValidity('Name is required.');
+                this.reportValidity();
+            } else {
+                this.setCustomValidity('');
+            }
+        });
+
+        document.getElementById('email').addEventListener('blur', function() {
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (this.value && !emailRegex.test(this.value)) {
+                this.setCustomValidity('Please enter a valid email address.');
+                this.reportValidity();
+            } else {
+                this.setCustomValidity('');
+            }
+        });
+    </script>
 </body>
 </html>

@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Server Error - BusHub</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body class="error-page">
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container">
+            <a class="navbar-brand fw-bold" href="{{ url_for('index') }}">
+                <i class="fas fa-bus me-2"></i>BusHub
+            </a>
+            <div class="navbar-nav ms-auto">
+                <a class="nav-link" href="{{ url_for('index') }}">Home</a>
+                <a class="nav-link" href="{{ url_for('user.contact') }}">Contact</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container py-5">
+        <div class="row justify-content-center">
+            <div class="col-lg-6 col-md-8 text-center">
+                <div class="error-content">
+                    <i class="fas fa-exclamation-circle fa-6x text-danger mb-4"></i>
+                    <h1 class="display-1 fw-bold text-danger mb-3">500</h1>
+                    <h2 class="mb-3">Internal Server Error</h2>
+                    <p class="lead text-muted mb-4">
+                        Something went wrong on our end. We're working to fix this issue.
+                        Please try again in a few moments.
+                    </p>
+
+                    <div class="d-grid gap-3 d-md-flex justify-content-md-center mb-4">
+                        <button onclick="location.reload()" class="btn btn-primary btn-lg">
+                            <i class="fas fa-redo me-2"></i>Try Again
+                        </button>
+                        <a href="{{ url_for('index') }}" class="btn btn-outline-primary btn-lg">
+                            <i class="fas fa-home me-2"></i>Go to Homepage
+                        </a>
+                    </div>
+
+                    <!-- Error Details -->
+                    <div class="card shadow-sm mb-4">
+                        <div class="card-body">
+                            <h6 class="card-title text-danger mb-3">
+                                <i class="fas fa-info-circle me-2"></i>What happened?
+                            </h6>
+                            <ul class="text-start mb-0">
+                                <li>The server encountered an unexpected error</li>
+                                <li>Our technical team has been notified</li>
+                                <li>The issue is being resolved as quickly as possible</li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <!-- Alternative Actions -->
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <div class="card h-100 border-0 bg-light">
+                                <div class="card-body text-center">
+                                    <i class="fas fa-envelope fa-2x text-primary mb-2"></i>
+                                    <h6>Report Issue</h6>
+                                    <a href="{{ url_for('user.contact') }}" class="btn btn-sm btn-outline-primary">
+                                        Contact Support
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <div class="card h-100 border-0 bg-light">
+                                <div class="card-body text-center">
+                                    <i class="fas fa-clock fa-2x text-warning mb-2"></i>
+                                    <h6>Check Status</h6>
+                                    <button class="btn btn-sm btn-outline-warning" onclick="checkStatus()">
+                                        System Status
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Technical Info (Collapsible) -->
+                    <div class="mt-4">
+                        <button class="btn btn-link text-muted p-0" type="button" data-bs-toggle="collapse" data-bs-target="#techDetails">
+                            <small>Technical Details <i class="fas fa-chevron-down ms-1"></i></small>
+                        </button>
+                        <div class="collapse mt-2" id="techDetails">
+                            <div class="card bg-light">
+                                <div class="card-body">
+                                    <small class="text-muted">
+                                        <strong>Error Code:</strong> 500 Internal Server Error<br>
+                                        <strong>Timestamp:</strong> <span id="timestamp"></span><br>
+                                        <strong>User Agent:</strong> <span id="userAgent"></span><br>
+                                        <strong>URL:</strong> <span id="currentUrl"></span>
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="bg-dark text-white py-3 mt-5">
+        <div class="container text-center">
+            <p class="mb-0">© 2024 BusHub. All rights reserved.</p>
+        </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Set technical details
+        document.getElementById('timestamp').textContent = new Date().toLocaleString();
+        document.getElementById('userAgent').textContent = navigator.userAgent;
+        document.getElementById('currentUrl').textContent = window.location.href;
+
+        // Check system status
+        function checkStatus() {
+            // Simple connectivity check
+            fetch(window.location.origin + '/static/style.css', { method: 'HEAD' })
+                .then(response => {
+                    if (response.ok) {
+                        alert('System appears to be online. The error may be temporary.');
+                    } else {
+                        alert('System may be experiencing issues. Please try again later.');
+                    }
+                })
+                .catch(() => {
+                    alert('Unable to connect to the server. Please check your internet connection.');
+                });
+        }
+
+        // Auto-retry after 30 seconds
+        let retryCount = 0;
+        const maxRetries = 3;
+
+        function autoRetry() {
+            if (retryCount < maxRetries) {
+                retryCount++;
+                setTimeout(() => {
+                    console.log(`Auto-retry attempt ${retryCount}/${maxRetries}`);
+                    // Simple check if page is accessible
+                    fetch(window.location.href, { method: 'HEAD' })
+                        .then(response => {
+                            if (response.ok) {
+                                location.reload();
+                            } else {
+                                autoRetry();
+                            }
+                        })
+                        .catch(() => {
+                            autoRetry();
+                        });
+                }, 10000); // 10 seconds
+            }
+        }
+
+        // Start auto-retry
+        autoRetry();
+    </script>
+</body>
+</html>

@@ -1,56 +1,260 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>Ticket Confirmation</title>
-
-  <style>
-    body {
-      font-family: Arial;
-      background: linear-gradient(135deg,#ff4e00,#ec9f05);
-      display:flex;
-      justify-content:center;
-      align-items:center;
-      height:100vh;
-    }
-
-    .ticket {
-      background:white;
-      padding:30px;
-      border-radius:10px;
-      width:400px;
-    }
-
-    h2 { color:green; text-align:center; }
-
-    .btn {
-      display:inline-block;
-      padding:10px;
-      margin-top:15px;
-      background:#ff4e00;
-      color:white;
-      text-decoration:none;
-      border-radius:5px;
-    }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Booking Confirmed - BusHub</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
-
 <body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container">
+            <a class="navbar-brand fw-bold" href="{{ url_for('user.search') }}">
+                <i class="fas fa-bus me-2"></i>BusHub
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('user.search') }}">
+                            <i class="fas fa-search me-1"></i>Search
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('user.booking_history') }}">
+                            <i class="fas fa-history me-1"></i>My Bookings
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('auth.logout') }}">
+                            <i class="fas fa-sign-out-alt me-1"></i>Logout
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
 
-<div class="ticket">
+    <div class="container py-5">
+        <div class="row justify-content-center">
+            <div class="col-lg-8">
+                <!-- Success Message -->
+                <div class="text-center mb-4">
+                    <div class="success-icon">
+                        <i class="fas fa-check-circle"></i>
+                    </div>
+                    <h2 class="text-success mb-3">Booking Confirmed!</h2>
+                    <p class="text-muted">Your bus ticket has been successfully booked. A confirmation email has been sent to your registered email address.</p>
+                </div>
 
-<h2>✅ Booking Confirmed</h2>
+                <!-- Booking Details Card -->
+                <div class="card mb-4">
+                    <div class="card-header bg-success text-white">
+                        <h5 class="mb-0">
+                            <i class="fas fa-ticket-alt me-2"></i>Booking Details
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">Booking ID</label>
+                                    <div class="booking-id">{{ booking.booking_id }}</div>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">Bus Name</label>
+                                    <div>{{ booking.bus_name }}</div>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">Route</label>
+                                    <div>{{ booking.source }} → {{ booking.destination }}</div>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">Travel Date</label>
+                                    <div>{{ booking.travel_date }}</div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">Departure Time</label>
+                                    <div>{{ booking.departure_time }}</div>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">Arrival Time</label>
+                                    <div>{{ booking.arrival_time }}</div>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">Seats</label>
+                                    <div>{{ booking.seats }}</div>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">Boarding Point</label>
+                                    <div>{{ booking.boarding_point }}</div>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">Dropping Point</label>
+                                    <div>{{ booking.dropping_point }}</div>
+                                </div>
+                            </div>
+                        </div>
+                        <hr>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">Passenger Name</label>
+                                    <div>{{ booking.passenger_name }}</div>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">Contact Number</label>
+                                    <div>{{ booking.contact_number }}</div>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">Email</label>
+                                    <div>{{ booking.email }}</div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">Payment Method</label>
+                                    <div>{{ booking.payment_method }}</div>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">Booking Date</label>
+                                    <div>{{ booking.booking_date }}</div>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">Total Amount</label>
+                                    <div class="h4 text-success">₹{{ "%.2f"|format(booking.total_amount) }}</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
 
-<p><b>Bus:</b> {{ booking.bus_name }}</p>
-<p><b>Route:</b> {{ booking.source }} → {{ booking.destination }}</p>
-<p><b>Date:</b> {{ booking.travel_date }}</p>
-<p><b>Passenger:</b> {{ booking.passenger_name }}</p>
-<p><b>Seats:</b> {{ booking.seats }}</p>
-<p><b>Total:</b> ₹{{ booking.total_amount }}</p>
+                <!-- Important Information -->
+                <div class="card mb-4">
+                    <div class="card-header bg-info text-white">
+                        <h5 class="mb-0">
+                            <i class="fas fa-info-circle me-2"></i>Important Information
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h6 class="text-primary">Travel Guidelines</h6>
+                                <ul class="list-unstyled">
+                                    <li><i class="fas fa-check text-success me-2"></i>Please arrive at the boarding point 30 minutes before departure</li>
+                                    <li><i class="fas fa-check text-success me-2"></i>Carry a valid ID proof for verification</li>
+                                    <li><i class="fas fa-check text-success me-2"></i>Print or show the e-ticket on your mobile</li>
+                                    <li><i class="fas fa-check text-success me-2"></i>Follow COVID-19 safety guidelines</li>
+                                </ul>
+                            </div>
+                            <div class="col-md-6">
+                                <h6 class="text-primary">Cancellation Policy</h6>
+                                <ul class="list-unstyled">
+                                    <li><i class="fas fa-times text-danger me-2"></i>Cancellation not allowed 2 hours before departure</li>
+                                    <li><i class="fas fa-exclamation-triangle text-warning me-2"></i>Partial refund available up to 24 hours before</li>
+                                    <li><i class="fas fa-clock text-info me-2"></i>Refunds processed within 5-7 business days</li>
+                                    <li><i class="fas fa-envelope text-primary me-2"></i>Contact support for cancellation requests</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
 
-<a href="/search" class="btn">Book Again</a>
-<a href="{{ url_for('booking_history') }}" class="btn">My Bookings</a>
+                <!-- Action Buttons -->
+                <div class="text-center">
+                    <a href="{{ url_for('user.download_ticket', booking_id=booking.id) }}" class="btn btn-primary me-3">
+                        <i class="fas fa-download me-2"></i>Download Ticket
+                    </a>
+                    <a href="{{ url_for('user.booking_history') }}" class="btn btn-outline-primary me-3">
+                        <i class="fas fa-history me-2"></i>View All Bookings
+                    </a>
+                    <a href="{{ url_for('user.search') }}" class="btn btn-success">
+                        <i class="fas fa-plus me-2"></i>Book Another Trip
+                    </a>
+                </div>
 
-</div>
+                <!-- QR Code Section -->
+                <div class="text-center mt-4">
+                    <div class="card">
+                        <div class="card-body">
+                            <h6 class="card-title">Show this QR code at boarding</h6>
+                            <div id="qrcode" class="d-inline-block p-3 bg-light rounded"></div>
+                            <p class="text-muted mt-2">Booking ID: {{ booking.booking_id }}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+    <script>
+        // Generate QR Code
+        document.addEventListener('DOMContentLoaded', function() {
+            const qrData = `Booking ID: {{ booking.booking_id }}\nPassenger: {{ booking.passenger_name }}\nRoute: {{ booking.source }} → {{ booking.destination }}\nDate: {{ booking.travel_date }}\nSeats: {{ booking.seats }}`;
+
+            QRCode.toCanvas(document.getElementById('qrcode'), qrData, {
+                width: 150,
+                height: 150,
+                colorDark: "#000000",
+                colorLight: "#ffffff",
+                correctLevel: QRCode.CorrectLevel.H
+            });
+        });
+
+        // Print functionality
+        function printTicket() {
+            window.print();
+        }
+    </script>
+
+    <style>
+        .success-icon {
+            font-size: 4rem;
+            color: #28a745;
+            margin-bottom: 1rem;
+        }
+
+        .booking-id {
+            font-family: 'Courier New', monospace;
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: #007bff;
+            background: #f8f9fa;
+            padding: 0.5rem;
+            border-radius: 5px;
+            border: 1px dashed #007bff;
+        }
+
+        #qrcode {
+            border: 2px solid #dee2e6;
+            border-radius: 10px;
+        }
+
+        @media print {
+            .navbar, .btn, .card-header {
+                display: none !important;
+            }
+
+            .container {
+                max-width: none !important;
+                margin: 0 !important;
+                padding: 0 !important;
+            }
+
+            .card {
+                border: none !important;
+                box-shadow: none !important;
+            }
+        }
+    </style>
 </body>
 </html>

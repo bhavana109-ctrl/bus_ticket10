@@ -1,78 +1,120 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>Search Buses</title>
-
-  <style>
-    body {
-      font-family: Arial;
-      background: linear-gradient(135deg, #ff4e00, #ec9f05);
-      color: white;
-      padding: 20px;
-    }
-
-    .box {
-      background: white;
-      color: black;
-      padding: 20px;
-      border-radius: 10px;
-      max-width: 500px;
-      margin: auto;
-    }
-
-    input, button {
-      width: 100%;
-      padding: 10px;
-      margin-top: 10px;
-    }
-
-    a {
-      color: white;
-      margin-right: 10px;
-    }
-
-    .flash {
-      background: yellow;
-      color: black;
-      padding: 10px;
-      margin-bottom: 10px;
-    }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Search Buses - BusHub</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
-
 <body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container">
+            <a class="navbar-brand fw-bold" href="{{ url_for('user.search') }}">
+                <i class="fas fa-bus me-2"></i>BusHub
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link active" href="{{ url_for('user.search') }}">
+                            <i class="fas fa-search me-1"></i>Search
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('user.booking_history') }}">
+                            <i class="fas fa-history me-1"></i>My Bookings
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('auth.logout') }}">
+                            <i class="fas fa-sign-out-alt me-1"></i>Logout
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
 
-<h2>🚌 Search Buses</h2>
+    <div class="container py-5">
+        <div class="row justify-content-center">
+            <div class="col-lg-8">
+                <div class="form-container">
+                    <h2 class="form-title">
+                        <i class="fas fa-search me-2 text-primary"></i>Search Buses
+                    </h2>
 
-<a href="{{ url_for('booking_history') }}">My Bookings</a>
-<a href="{{ url_for('logout') }}">Logout</a>
+                    <!-- Flash Messages -->
+                    {% with messages = get_flashed_messages(with_categories=true) %}
+                        {% if messages %}
+                            {% for category, message in messages %}
+                                <div class="alert alert-{{ 'success' if category == 'success' else 'error' }}">
+                                    {{ message }}
+                                </div>
+                            {% endfor %}
+                        {% endif %}
+                    {% endwith %}
 
-{% with messages = get_flashed_messages() %}
-  {% if messages %}
-    {% for msg in messages %}
-      <div class="flash">{{ msg }}</div>
-    {% endfor %}
-  {% endif %}
-{% endwith %}
+                    <form method="POST">
+                        <div class="row">
+                            <div class="col-md-4">
+                                <div class="form-group">
+                                    <label for="from" class="form-label">
+                                        <i class="fas fa-map-marker-alt me-1"></i>From
+                                    </label>
+                                    <input type="text" class="form-control" id="from" name="from"
+                                           placeholder="Departure City" required>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-group">
+                                    <label for="to" class="form-label">
+                                        <i class="fas fa-map-marker me-1"></i>To
+                                    </label>
+                                    <input type="text" class="form-control" id="to" name="to"
+                                           placeholder="Arrival City" required>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-group">
+                                    <label for="date" class="form-label">
+                                        <i class="fas fa-calendar me-1"></i>Travel Date
+                                    </label>
+                                    <input type="date" class="form-control" id="date" name="date"
+                                           min="{{ (current_date or today) }}" required>
+                                </div>
+                            </div>
+                        </div>
 
-<div class="box">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-search me-2"></i>Search Buses
+                        </button>
+                    </form>
 
-<form action="/search_buses" method="POST">
+                    <div class="text-center mt-4">
+                        <p class="text-muted">
+                            <i class="fas fa-info-circle me-1"></i>
+                            Search buses with multiple stops support
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 
-  <label>From</label>
-  <input type="text" name="from" required>
-
-  <label>To</label>
-  <input type="text" name="to" required>
-
-  <label>Date</label>
-  <input type="date" name="date" required>
-
-  <button type="submit">Search</button>
-
-</form>
-
-</div>
-
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Set minimum date to today
+        const dateInput = document.getElementById('date');
+        const today = new Date().toISOString().split('T')[0];
+        dateInput.setAttribute('min', today);
+        if (!dateInput.value) {
+            dateInput.value = today;
+        }
+    </script>
 </body>
 </html>

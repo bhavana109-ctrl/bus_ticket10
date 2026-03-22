@@ -1,68 +1,268 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Verify OTP</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Verify Email - BusHub</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body class="auth-page">
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container">
+            <a class="navbar-brand fw-bold" href="{{ url_for('index') }}">
+                <i class="fas fa-bus me-2"></i>BusHub
+            </a>
+        </div>
+    </nav>
+
+    <div class="container py-5">
+        <div class="row justify-content-center">
+            <div class="col-lg-6 col-md-8">
+                <div class="card shadow-lg">
+                    <div class="card-header bg-primary text-white text-center">
+                        <h4 class="mb-0">
+                            <i class="fas fa-envelope me-2"></i>Verify Your Email
+                        </h4>
+                    </div>
+                    <div class="card-body p-4">
+                        <!-- Flash Messages -->
+                        {% with messages = get_flashed_messages(with_categories=true) %}
+                            {% if messages %}
+                                {% for category, message in messages %}
+                                    <div class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible fade show">
+                                        {{ message }}
+                                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                                    </div>
+                                {% endfor %}
+                            {% endif %}
+                        {% endwith %}
+
+                        <div class="text-center mb-4">
+                            <i class="fas fa-envelope-open-text fa-4x text-primary mb-3"></i>
+                            <h5>Check Your Email</h5>
+                            <p class="text-muted">
+                                We've sent a 6-digit verification code to <strong>{{ email }}</strong>
+                            </p>
+                            <p class="text-muted small">
+                                Enter the code below to verify your email address and complete your registration.
+                            </p>
+                        </div>
+
+                        <form method="POST" id="otpForm">
+                            <!-- OTP Input -->
+                            <div class="mb-4">
+                                <label for="otp" class="form-label text-center d-block">
+                                    <i class="fas fa-key me-1"></i>Enter Verification Code
+                                </label>
+                                <div class="otp-input-container">
+                                    <input type="text" class="form-control text-center otp-input" id="otp" name="otp"
+                                           placeholder="000000" maxlength="6" pattern="[0-9]{6}" required>
+                                </div>
+                                <div class="invalid-feedback text-center">
+                                    Please enter a valid 6-digit code.
+                                </div>
+                            </div>
+
+                            <!-- Submit Button -->
+                            <div class="text-center mb-3">
+                                <button type="submit" class="btn btn-primary btn-lg" id="verifyBtn">
+                                    <i class="fas fa-check me-2"></i>Verify Email
+                                </button>
+                            </div>
+                        </form>
+
+                        <!-- Resend OTP -->
+                        <div class="text-center">
+                            <p class="text-muted mb-2">Didn't receive the code?</p>
+                            <button class="btn btn-outline-primary btn-sm" id="resendBtn" onclick="resendOTP()">
+                                <i class="fas fa-redo me-1"></i>Resend Code
+                            </button>
+                            <p class="text-muted small mt-2" id="resendTimer">
+                                Resend available in <span id="countdown">60</span> seconds
+                            </p>
+                        </div>
+
+                        <!-- Back to Register -->
+                        <div class="text-center mt-4">
+                            <a href="{{ url_for('auth.register') }}" class="text-muted">
+                                <i class="fas fa-arrow-left me-1"></i>Back to Registration
+                            </a>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Security Notice -->
+                <div class="alert alert-info mt-4">
+                    <i class="fas fa-shield-alt me-2"></i>
+                    <strong>Security Note:</strong> The verification code is valid for 10 minutes.
+                    Do not share this code with anyone.
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // OTP input formatting
+        document.getElementById('otp').addEventListener('input', function() {
+            // Remove non-numeric characters
+            this.value = this.value.replace(/\D/g, '');
+
+            // Auto-submit when 6 digits are entered
+            if (this.value.length === 6) {
+                setTimeout(() => {
+                    document.getElementById('otpForm').submit();
+                }, 500);
+            }
+        });
+
+        // Form submission
+        document.getElementById('otpForm').addEventListener('submit', function(e) {
+            const otp = document.getElementById('otp').value;
+            if (otp.length !== 6) {
+                e.preventDefault();
+                document.getElementById('otp').setCustomValidity('Please enter a 6-digit code.');
+                document.getElementById('otp').reportValidity();
+                return false;
+            }
+
+            const btn = document.getElementById('verifyBtn');
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Verifying...';
+        });
+
+        // Resend OTP functionality
+        let countdown = 60;
+        const countdownElement = document.getElementById('countdown');
+        const resendBtn = document.getElementById('resendBtn');
+        const resendTimer = document.getElementById('resendTimer');
+
+        function updateCountdown() {
+            countdown--;
+            countdownElement.textContent = countdown;
+
+            if (countdown <= 0) {
+                resendBtn.disabled = false;
+                resendTimer.style.display = 'none';
+            } else {
+                setTimeout(updateCountdown, 1000);
+            }
+        }
+
+        // Start countdown
+        updateCountdown();
+
+        function resendOTP() {
+            resendBtn.disabled = true;
+            resendBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Sending...';
+
+            // Simulate API call
+            fetch('/resend_register_otp', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Reset countdown
+                    countdown = 60;
+                    countdownElement.textContent = countdown;
+                    resendTimer.style.display = 'block';
+                    updateCountdown();
+
+                    // Show success message
+                    showAlert('Verification code sent successfully!', 'success');
+                } else {
+                    showAlert('Failed to resend code. Please try again.', 'danger');
+                }
+            })
+            .catch(error => {
+                showAlert('Network error. Please try again.', 'danger');
+            })
+            .finally(() => {
+                resendBtn.disabled = false;
+                resendBtn.innerHTML = '<i class="fas fa-redo me-1"></i>Resend Code';
+            });
+        }
+
+        function showAlert(message, type) {
+            const alertDiv = document.createElement('div');
+            alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+            alertDiv.innerHTML = `
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            `;
+
+            const cardBody = document.querySelector('.card-body');
+            cardBody.insertBefore(alertDiv, cardBody.firstChild);
+
+            // Auto-dismiss after 5 seconds
+            setTimeout(() => {
+                alertDiv.remove();
+            }, 5000);
+        }
+
+        // Focus on OTP input when page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            document.getElementById('otp').focus();
+        });
+    </script>
+
     <style>
-        body {
-            font-family: Arial;
-            background: linear-gradient(135deg, #ff4e00, #ec9f05);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
+        .auth-page {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
         }
 
-        .box {
-            background: white;
-            padding: 30px;
-            border-radius: 10px;
-            width: 350px;
-            text-align: center;
-        }
-
-        input {
-            width: 100%;
-            padding: 10px;
-            margin-top: 15px;
-            border: 2px solid #ddd;
-            border-radius: 5px;
-        }
-
-        button {
-            width: 100%;
-            padding: 10px;
-            margin-top: 20px;
-            background: #ff4e00;
-            color: white;
+        .card {
             border: none;
-            border-radius: 5px;
-            cursor: pointer;
+            border-radius: 15px;
+            overflow: hidden;
         }
 
-        button:hover {
-            background: #cc3d00;
+        .card-header {
+            border-bottom: none;
+        }
+
+        .otp-input-container {
+            max-width: 300px;
+            margin: 0 auto;
+        }
+
+        .otp-input {
+            font-size: 2rem;
+            font-weight: bold;
+            letter-spacing: 0.5rem;
+            text-align: center;
+            border: 2px solid #dee2e6;
+            border-radius: 10px;
+            padding: 1rem;
+        }
+
+        .otp-input:focus {
+            border-color: #007bff;
+            box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
+            border: none;
+            border-radius: 25px;
+            padding: 12px 30px;
+        }
+
+        .btn-primary:hover {
+            background: linear-gradient(135deg, #0056b3 0%, #004085 100%);
+        }
+
+        #resendTimer {
+            display: block;
         }
     </style>
-</head>
-<body>
-
-<div class="box">
-    <h2>🔐 Verify OTP</h2>
-    <p>Enter the OTP sent to your email</p>
-
-    <form method="POST">
-        <input type="text" name="otp" placeholder="Enter OTP" required>
-        <button type="submit">Verify</button>
-    </form>
-
-    <p style="margin-top:15px;color:red;">
-        {% with messages = get_flashed_messages() %}
-            {% if messages %}
-                {{ messages[0] }}
-            {% endif %}
-        {% endwith %}
-    </p>
-</div>
-
 </body>
 </html>

@@ -1,19 +1,341 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>Verify OTP</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Verify OTP - BusHub</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
-<body>
+<body class="auth-page">
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container">
+            <a class="navbar-brand fw-bold" href="{{ url_for('index') }}">
+                <i class="fas fa-bus me-2"></i>BusHub
+            </a>
+        </div>
+    </nav>
 
-<h2>Enter OTP</h2>
+    <div class="container py-5">
+        <div class="row justify-content-center">
+            <div class="col-lg-6 col-md-8">
+                <div class="card shadow-lg">
+                    <div class="card-header bg-primary text-white text-center">
+                        <h4 class="mb-0">
+                            <i class="fas fa-key me-2"></i>Reset Password
+                        </h4>
+                    </div>
+                    <div class="card-body p-4">
+                        <!-- Flash Messages -->
+                        {% with messages = get_flashed_messages(with_categories=true) %}
+                            {% if messages %}
+                                {% for category, message in messages %}
+                                    <div class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible fade show">
+                                        {{ message }}
+                                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                                    </div>
+                                {% endfor %}
+                            {% endif %}
+                        {% endwith %}
 
-<form method="POST">
-  <input type="text" name="otp" placeholder="Enter OTP" required><br><br>
+                        <div class="text-center mb-4">
+                            <i class="fas fa-envelope-open-text fa-4x text-primary mb-3"></i>
+                            <h5>Check Your Email</h5>
+                            <p class="text-muted">
+                                We've sent a 6-digit verification code to <strong>{{ email }}</strong>
+                            </p>
+                            <p class="text-muted small">
+                                Enter the code below to reset your password.
+                            </p>
+                        </div>
 
-  <input type="password" name="new_password" placeholder="New Password" required><br><br>
+                        <form method="POST" id="otpForm">
+                            <!-- OTP Input -->
+                            <div class="mb-4">
+                                <label for="otp" class="form-label text-center d-block">
+                                    <i class="fas fa-key me-1"></i>Enter Verification Code
+                                </label>
+                                <div class="otp-input-container">
+                                    <input type="text" class="form-control text-center otp-input" id="otp" name="otp"
+                                           placeholder="000000" maxlength="6" pattern="[0-9]{6}" required>
+                                </div>
+                                <div class="invalid-feedback text-center">
+                                    Please enter a valid 6-digit code.
+                                </div>
+                            </div>
 
-  <button type="submit">Reset Password</button>
-</form>
+                            <!-- New Password -->
+                            <div class="mb-3">
+                                <label for="new_password" class="form-label">
+                                    <i class="fas fa-lock me-1"></i>New Password *
+                                </label>
+                                <div class="input-group">
+                                    <input type="password" class="form-control" id="new_password" name="new_password"
+                                           placeholder="Enter new password" required>
+                                    <button class="btn btn-outline-secondary" type="button" id="togglePassword">
+                                        <i class="fas fa-eye"></i>
+                                    </button>
+                                </div>
+                                <div class="form-text">
+                                    Password must be at least 8 characters with uppercase, lowercase, and number.
+                                </div>
+                                <div class="invalid-feedback">
+                                    Password must meet the requirements.
+                                </div>
+                            </div>
 
+                            <!-- Confirm New Password -->
+                            <div class="mb-4">
+                                <label for="confirm_password" class="form-label">
+                                    <i class="fas fa-lock me-1"></i>Confirm New Password *
+                                </label>
+                                <input type="password" class="form-control" id="confirm_password" name="confirm_password"
+                                       placeholder="Confirm new password" required>
+                                <div class="invalid-feedback">
+                                    Passwords do not match.
+                                </div>
+                            </div>
+
+                            <!-- Submit Button -->
+                            <div class="text-center mb-3">
+                                <button type="submit" class="btn btn-primary btn-lg" id="resetBtn">
+                                    <i class="fas fa-key me-2"></i>Reset Password
+                                </button>
+                            </div>
+                        </form>
+
+                        <!-- Resend OTP -->
+                        <div class="text-center">
+                            <p class="text-muted mb-2">Didn't receive the code?</p>
+                            <button class="btn btn-outline-primary btn-sm" id="resendBtn" onclick="resendOTP()">
+                                <i class="fas fa-redo me-1"></i>Resend Code
+                            </button>
+                            <p class="text-muted small mt-2" id="resendTimer">
+                                Resend available in <span id="countdown">60</span> seconds
+                            </p>
+                        </div>
+
+                        <!-- Back to Login -->
+                        <div class="text-center mt-4">
+                            <a href="{{ url_for('auth.login') }}" class="text-muted">
+                                <i class="fas fa-arrow-left me-1"></i>Back to Login
+                            </a>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Security Notice -->
+                <div class="alert alert-info mt-4">
+                    <i class="fas fa-shield-alt me-2"></i>
+                    <strong>Security Note:</strong> The verification code is valid for 10 minutes.
+                    Your new password will be securely encrypted.
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Password toggle
+        document.getElementById('togglePassword').addEventListener('click', function() {
+            const password = document.getElementById('new_password');
+            const icon = this.querySelector('i');
+
+            if (password.type === 'password') {
+                password.type = 'text';
+                icon.classList.remove('fa-eye');
+                icon.classList.add('fa-eye-slash');
+            } else {
+                password.type = 'password';
+                icon.classList.remove('fa-eye-slash');
+                icon.classList.add('fa-eye');
+            }
+        });
+
+        // OTP input formatting
+        document.getElementById('otp').addEventListener('input', function() {
+            this.value = this.value.replace(/\D/g, '');
+        });
+
+        // Password validation
+        function validatePasswords() {
+            const password = document.getElementById('new_password').value;
+            const confirmPassword = document.getElementById('confirm_password').value;
+            const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[a-zA-Z\d@$!%*?&]{8,}$/;
+
+            if (!passwordRegex.test(password)) {
+                document.getElementById('new_password').setCustomValidity('Password must be at least 8 characters with uppercase, lowercase, and number.');
+                return false;
+            } else {
+                document.getElementById('new_password').setCustomValidity('');
+            }
+
+            if (password !== confirmPassword) {
+                document.getElementById('confirm_password').setCustomValidity('Passwords do not match.');
+                return false;
+            } else {
+                document.getElementById('confirm_password').setCustomValidity('');
+            }
+
+            return true;
+        }
+
+        // Real-time validation
+        document.getElementById('new_password').addEventListener('input', validatePasswords);
+        document.getElementById('confirm_password').addEventListener('input', validatePasswords);
+
+        // Form submission
+        document.getElementById('otpForm').addEventListener('submit', function(e) {
+            const otp = document.getElementById('otp').value;
+            if (otp.length !== 6) {
+                e.preventDefault();
+                document.getElementById('otp').setCustomValidity('Please enter a 6-digit code.');
+                document.getElementById('otp').reportValidity();
+                return false;
+            }
+
+            if (!validatePasswords()) {
+                e.preventDefault();
+                return false;
+            }
+
+            const btn = document.getElementById('resetBtn');
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Resetting...';
+        });
+
+        // Resend OTP functionality
+        let countdown = 60;
+        const countdownElement = document.getElementById('countdown');
+        const resendBtn = document.getElementById('resendBtn');
+        const resendTimer = document.getElementById('resendTimer');
+
+        function updateCountdown() {
+            countdown--;
+            countdownElement.textContent = countdown;
+
+            if (countdown <= 0) {
+                resendBtn.disabled = false;
+                resendTimer.style.display = 'none';
+            } else {
+                setTimeout(updateCountdown, 1000);
+            }
+        }
+
+        // Start countdown
+        updateCountdown();
+
+        function resendOTP() {
+            resendBtn.disabled = true;
+            resendBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Sending...';
+
+            fetch('/resend_forgot_otp', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Reset countdown
+                    countdown = 60;
+                    countdownElement.textContent = countdown;
+                    resendTimer.style.display = 'block';
+                    updateCountdown();
+
+                    showAlert('Verification code sent successfully!', 'success');
+                } else {
+                    showAlert('Failed to resend code. Please try again.', 'danger');
+                }
+            })
+            .catch(error => {
+                showAlert('Network error. Please try again.', 'danger');
+            })
+            .finally(() => {
+                resendBtn.disabled = false;
+                resendBtn.innerHTML = '<i class="fas fa-redo me-1"></i>Resend Code';
+            });
+        }
+
+        function showAlert(message, type) {
+            const alertDiv = document.createElement('div');
+            alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+            alertDiv.innerHTML = `
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            `;
+
+            const cardBody = document.querySelector('.card-body');
+            cardBody.insertBefore(alertDiv, cardBody.firstChild);
+
+            setTimeout(() => {
+                alertDiv.remove();
+            }, 5000);
+        }
+
+        // Focus on OTP input when page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            document.getElementById('otp').focus();
+        });
+    </script>
+
+    <style>
+        .auth-page {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+
+        .card {
+            border: none;
+            border-radius: 15px;
+            overflow: hidden;
+        }
+
+        .card-header {
+            border-bottom: none;
+        }
+
+        .otp-input-container {
+            max-width: 300px;
+            margin: 0 auto;
+        }
+
+        .otp-input {
+            font-size: 2rem;
+            font-weight: bold;
+            letter-spacing: 0.5rem;
+            text-align: center;
+            border: 2px solid #dee2e6;
+            border-radius: 10px;
+            padding: 1rem;
+        }
+
+        .otp-input:focus {
+            border-color: #007bff;
+            box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
+            border: none;
+            border-radius: 25px;
+            padding: 12px 30px;
+        }
+
+        .btn-primary:hover {
+            background: linear-gradient(135deg, #0056b3 0%, #004085 100%);
+        }
+
+        .input-group .btn {
+            border-radius: 0 0.375rem 0.375rem 0;
+        }
+
+        #resendTimer {
+            display: block;
+        }
+    </style>
 </body>
 </html>

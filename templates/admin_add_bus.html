@@ -3,28 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Add New Bus - Admin Panel</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <title>Add New Bus - BusHub Admin</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <style>
-        .sidebar {
-            background: #343a40;
-            min-height: 100vh;
-            color: white;
-        }
-        .sidebar .nav-link {
-            color: rgba(255,255,255,.75);
-            padding: 0.75rem 1rem;
-        }
-        .sidebar .nav-link:hover {
-            color: white;
-            background: rgba(255,255,255,.1);
-        }
-        .sidebar .nav-link.active {
-            color: white;
-            background: #0d6efd;
-        }
-    </style>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
     <div class="container-fluid">
@@ -33,24 +15,27 @@
             <div class="col-md-2 sidebar p-0">
                 <div class="p-3">
                     <h5 class="text-center mb-4">
-                        <i class="fas fa-bus"></i> Admin Panel
+                        <i class="fas fa-bus me-2"></i>BusHub Admin
                     </h5>
                     <nav class="nav flex-column">
-                        <a class="nav-link" href="/admin/dashboard">
-                            <i class="fas fa-tachometer-alt"></i> Dashboard
+                        <a class="nav-link" href="{{ url_for('admin.dashboard') }}">
+                            <i class="fas fa-tachometer-alt me-2"></i>Dashboard
                         </a>
-                        <a class="nav-link active" href="/admin/buses">
-                            <i class="fas fa-bus"></i> Manage Buses
+                        <a class="nav-link" href="{{ url_for('admin.manage_buses') }}">
+                            <i class="fas fa-bus me-2"></i>Manage Buses
                         </a>
-                        <a class="nav-link" href="/admin/users">
-                            <i class="fas fa-users"></i> Users
+                        <a class="nav-link active" href="{{ url_for('admin.add_bus') }}">
+                            <i class="fas fa-plus me-2"></i>Add Bus
                         </a>
-                        <a class="nav-link" href="/admin/bookings">
-                            <i class="fas fa-ticket-alt"></i> Bookings
+                        <a class="nav-link" href="{{ url_for('admin.bookings') }}">
+                            <i class="fas fa-ticket-alt me-2"></i>Bookings
+                        </a>
+                        <a class="nav-link" href="{{ url_for('admin.users') }}">
+                            <i class="fas fa-users me-2"></i>Users
                         </a>
                         <hr class="my-3">
-                        <a class="nav-link" href="/admin/logout">
-                            <i class="fas fa-sign-out-alt"></i> Logout
+                        <a class="nav-link" href="{{ url_for('admin.logout') }}">
+                            <i class="fas fa-sign-out-alt me-2"></i>Logout
                         </a>
                     </nav>
                 </div>
@@ -58,44 +43,74 @@
 
             <!-- Main Content -->
             <div class="col-md-10 p-4">
+                <!-- Header -->
                 <div class="d-flex justify-content-between align-items-center mb-4">
-                    <h2><i class="fas fa-plus"></i> Add New Bus</h2>
-                    <a href="/admin/buses" class="btn btn-secondary">
-                        <i class="fas fa-arrow-left"></i> Back to Buses
+                    <div>
+                        <h2 class="mb-1">
+                            <i class="fas fa-plus me-2"></i>Add New Bus
+                        </h2>
+                        <p class="text-muted mb-0">Create a new bus route with multiple stops</p>
+                    </div>
+                    <a href="{{ url_for('admin.manage_buses') }}" class="btn btn-secondary">
+                        <i class="fas fa-arrow-left me-2"></i>Back to Buses
                     </a>
                 </div>
 
-                <div class="card">
-                    <div class="card-header">
-                        <h5>Bus Information</h5>
-                    </div>
-                    <div class="card-body">
-                        {% with messages = get_flashed_messages() %}
-                            {% if messages %}
-                                {% for message in messages %}
-                                    <div class="alert alert-success">{{ message }}</div>
+                <!-- Flash Messages -->
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                    {% if messages %}
+                        <div class="row mb-4">
+                            <div class="col-12">
+                                {% for category, message in messages %}
+                                    <div class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible fade show">
+                                        {{ message }}
+                                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                                    </div>
                                 {% endfor %}
-                            {% endif %}
-                        {% endwith %}
+                            </div>
+                        </div>
+                    {% endif %}
+                {% endwith %}
 
-                        <form method="POST">
+                <form method="POST" id="addBusForm">
+                    <!-- Basic Information -->
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h5 class="mb-0">
+                                <i class="fas fa-info-circle me-2"></i>Basic Information
+                            </h5>
+                        </div>
+                        <div class="card-body">
                             <div class="row">
                                 <div class="col-md-6">
                                     <div class="mb-3">
-                                        <label for="bus_name" class="form-label">Bus Name *</label>
+                                        <label for="bus_name" class="form-label">
+                                            <i class="fas fa-bus me-1"></i>Bus Name *
+                                        </label>
                                         <input type="text" class="form-control" id="bus_name" name="bus_name"
                                                placeholder="e.g., Super Express AC" required>
+                                        <div class="invalid-feedback">
+                                            Please enter a bus name.
+                                        </div>
                                     </div>
                                 </div>
                                 <div class="col-md-6">
                                     <div class="mb-3">
-                                        <label for="bus_type" class="form-label">Bus Type *</label>
-                                        <select class="form-control" id="bus_type" name="bus_type" required>
+                                        <label for="bus_type" class="form-label">
+                                            <i class="fas fa-star me-1"></i>Bus Type *
+                                        </label>
+                                        <select class="form-select" id="bus_type" name="bus_type" required>
+                                            <option value="">Select bus type</option>
                                             <option value="AC">AC</option>
                                             <option value="Non-AC">Non-AC</option>
                                             <option value="Sleeper">Sleeper</option>
                                             <option value="Semi-Sleeper">Semi-Sleeper</option>
+                                            <option value="Volvo">Volvo</option>
+                                            <option value="Luxury">Luxury</option>
                                         </select>
+                                        <div class="invalid-feedback">
+                                            Please select a bus type.
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -103,88 +118,339 @@
                             <div class="row">
                                 <div class="col-md-6">
                                     <div class="mb-3">
-                                        <label for="source" class="form-label">Source City *</label>
-                                        <input type="text" class="form-control" id="source" name="source"
-                                               placeholder="e.g., Kochi" required>
+                                        <label for="operator" class="form-label">
+                                            <i class="fas fa-building me-1"></i>Bus Operator
+                                        </label>
+                                        <input type="text" class="form-control" id="operator" name="operator"
+                                               placeholder="e.g., RedBus, MakeMyTrip">
                                     </div>
                                 </div>
                                 <div class="col-md-6">
                                     <div class="mb-3">
-                                        <label for="destination" class="form-label">Destination City *</label>
-                                        <input type="text" class="form-control" id="destination" name="destination"
-                                               placeholder="e.g., Calicut" required>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div class="row">
-                                <div class="col-md-4">
-                                    <div class="mb-3">
-                                        <label for="travel_date" class="form-label">Travel Date *</label>
-                                        <input type="date" class="form-control" id="travel_date" name="travel_date" required>
-                                    </div>
-                                </div>
-                                <div class="col-md-4">
-                                    <div class="mb-3">
-                                        <label for="departure_time" class="form-label">Departure Time *</label>
-                                        <input type="time" class="form-control" id="departure_time" name="departure_time" required>
-                                    </div>
-                                </div>
-                                <div class="col-md-4">
-                                    <div class="mb-3">
-                                        <label for="arrival_time" class="form-label">Arrival Time *</label>
-                                        <input type="time" class="form-control" id="arrival_time" name="arrival_time" required>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div class="row">
-                                <div class="col-md-4">
-                                    <div class="mb-3">
-                                        <label for="price" class="form-label">Price per Seat (₹) *</label>
-                                        <input type="number" class="form-control" id="price" name="price"
-                                               step="0.01" min="1" placeholder="500.00" required>
-                                    </div>
-                                </div>
-                                <div class="col-md-4">
-                                    <div class="mb-3">
-                                        <label for="seats_total" class="form-label">Total Seats *</label>
-                                        <input type="number" class="form-control" id="seats_total" name="seats_total"
-                                               min="1" max="60" value="40" required>
-                                    </div>
-                                </div>
-                                <div class="col-md-4">
-                                    <div class="mb-3">
-                                        <label for="image_url" class="form-label">Image URL</label>
+                                        <label for="image_url" class="form-label">
+                                            <i class="fas fa-image me-1"></i>Bus Image URL
+                                        </label>
                                         <input type="url" class="form-control" id="image_url" name="image_url"
                                                placeholder="https://example.com/bus-image.jpg">
+                                        <div class="form-text">
+                                            Optional: URL to bus image for display
+                                        </div>
                                     </div>
                                 </div>
                             </div>
 
                             <div class="mb-3">
-                                <label for="amenities" class="form-label">Amenities</label>
+                                <label for="amenities" class="form-label">
+                                    <i class="fas fa-concierge-bell me-1"></i>Amenities
+                                </label>
                                 <textarea class="form-control" id="amenities" name="amenities" rows="3"
-                                          placeholder="WiFi, AC, Snacks, TV, etc."></textarea>
+                                          placeholder="WiFi, AC, Snacks, TV, Charging Points, Blankets, etc."></textarea>
+                                <div class="form-text">
+                                    Separate amenities with commas
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Route Information -->
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h5 class="mb-0">
+                                <i class="fas fa-route me-2"></i>Route Information
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="source" class="form-label">
+                                            <i class="fas fa-map-marker-alt me-1"></i>Source City *
+                                        </label>
+                                        <input type="text" class="form-control" id="source" name="source"
+                                               placeholder="e.g., Kochi" required>
+                                        <div class="invalid-feedback">
+                                            Please enter source city.
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="destination" class="form-label">
+                                            <i class="fas fa-flag-checkered me-1"></i>Destination City *
+                                        </label>
+                                        <input type="text" class="form-control" id="destination" name="destination"
+                                               placeholder="e.g., Calicut" required>
+                                        <div class="invalid-feedback">
+                                            Please enter destination city.
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
 
-                            <div class="d-grid">
-                                <button type="submit" class="btn btn-primary btn-lg">
-                                    <i class="fas fa-save"></i> Add Bus
+                            <!-- Multiple Stops Section -->
+                            <div class="mb-3">
+                                <label class="form-label">
+                                    <i class="fas fa-stop me-1"></i>Intermediate Stops
+                                </label>
+                                <div id="stopsContainer">
+                                    <div class="input-group mb-2 stop-item">
+                                        <input type="text" class="form-control" name="stops[]" placeholder="e.g., Thrissur">
+                                        <input type="time" class="form-control" name="stop_times[]" placeholder="Arrival time">
+                                        <button type="button" class="btn btn-outline-danger remove-stop">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                                <button type="button" class="btn btn-outline-primary btn-sm" id="addStop">
+                                    <i class="fas fa-plus me-1"></i>Add Stop
                                 </button>
+                                <div class="form-text">
+                                    Add intermediate stops with their arrival times (optional)
+                                </div>
                             </div>
-                        </form>
+                        </div>
                     </div>
-                </div>
+
+                    <!-- Schedule Information -->
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h5 class="mb-0">
+                                <i class="fas fa-calendar-alt me-2"></i>Schedule Information
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-4">
+                                    <div class="mb-3">
+                                        <label for="travel_date" class="form-label">
+                                            <i class="fas fa-calendar me-1"></i>Travel Date *
+                                        </label>
+                                        <input type="date" class="form-control" id="travel_date" name="travel_date" required>
+                                        <div class="invalid-feedback">
+                                            Please select a travel date.
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="mb-3">
+                                        <label for="departure_time" class="form-label">
+                                            <i class="fas fa-clock me-1"></i>Departure Time *
+                                        </label>
+                                        <input type="time" class="form-control" id="departure_time" name="departure_time" required>
+                                        <div class="invalid-feedback">
+                                            Please select departure time.
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="mb-3">
+                                        <label for="arrival_time" class="form-label">
+                                            <i class="fas fa-clock me-1"></i>Arrival Time *
+                                        </label>
+                                        <input type="time" class="form-control" id="arrival_time" name="arrival_time" required>
+                                        <div class="invalid-feedback">
+                                            Please select arrival time.
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="duration" class="form-label">
+                                            <i class="fas fa-hourglass-half me-1"></i>Duration (hours)
+                                        </label>
+                                        <input type="number" class="form-control" id="duration" name="duration"
+                                               step="0.5" min="0.5" placeholder="4.5">
+                                        <div class="form-text">
+                                            Auto-calculated from departure/arrival times
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="distance" class="form-label">
+                                            <i class="fas fa-road me-1"></i>Distance (km)
+                                        </label>
+                                        <input type="number" class="form-control" id="distance" name="distance"
+                                               step="0.1" min="1" placeholder="200.5">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Pricing and Capacity -->
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h5 class="mb-0">
+                                <i class="fas fa-rupee-sign me-2"></i>Pricing & Capacity
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-4">
+                                    <div class="mb-3">
+                                        <label for="price" class="form-label">
+                                            <i class="fas fa-tag me-1"></i>Base Price (₹) *
+                                        </label>
+                                        <input type="number" class="form-control" id="price" name="price"
+                                               step="0.01" min="1" placeholder="500.00" required>
+                                        <div class="invalid-feedback">
+                                            Please enter a valid price.
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="mb-3">
+                                        <label for="seats_total" class="form-label">
+                                            <i class="fas fa-chair me-1"></i>Total Seats *
+                                        </label>
+                                        <input type="number" class="form-control" id="seats_total" name="seats_total"
+                                               min="1" max="60" value="40" required>
+                                        <div class="invalid-feedback">
+                                            Please enter total number of seats.
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="mb-3">
+                                        <label for="available_seats" class="form-label">
+                                            <i class="fas fa-check-circle me-1"></i>Available Seats
+                                        </label>
+                                        <input type="number" class="form-control" id="available_seats" name="available_seats"
+                                               min="0" max="60" value="40" readonly>
+                                        <div class="form-text">
+                                            Initially set to total seats
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Submit Button -->
+                    <div class="text-center">
+                        <button type="submit" class="btn btn-success btn-lg" id="submitBtn">
+                            <i class="fas fa-save me-2"></i>Add Bus Route
+                        </button>
+                        <a href="{{ url_for('admin.manage_buses') }}" class="btn btn-secondary btn-lg ms-2">
+                            <i class="fas fa-times me-2"></i>Cancel
+                        </a>
+                    </div>
+                </form>
             </div>
         </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         // Set minimum date to today
         const today = new Date().toISOString().split('T')[0];
         document.getElementById('travel_date').setAttribute('min', today);
+
+        // Auto-calculate duration
+        function calculateDuration() {
+            const departure = document.getElementById('departure_time').value;
+            const arrival = document.getElementById('arrival_time').value;
+            const durationField = document.getElementById('duration');
+
+            if (departure && arrival) {
+                const depTime = new Date(`2000-01-01T${departure}`);
+                const arrTime = new Date(`2000-01-01T${arrival}`);
+
+                // Handle next day arrival
+                if (arrTime < depTime) {
+                    arrTime.setDate(arrTime.getDate() + 1);
+                }
+
+                const diffMs = arrTime - depTime;
+                const diffHours = diffMs / (1000 * 60 * 60);
+                durationField.value = diffHours.toFixed(1);
+            }
+        }
+
+        document.getElementById('departure_time').addEventListener('change', calculateDuration);
+        document.getElementById('arrival_time').addEventListener('change', calculateDuration);
+
+        // Sync available seats with total seats
+        document.getElementById('seats_total').addEventListener('input', function() {
+            document.getElementById('available_seats').value = this.value;
+        });
+
+        // Add/Remove stops functionality
+        let stopCount = 1;
+        document.getElementById('addStop').addEventListener('click', function() {
+            const container = document.getElementById('stopsContainer');
+            const stopDiv = document.createElement('div');
+            stopDiv.className = 'input-group mb-2 stop-item';
+            stopDiv.innerHTML = `
+                <input type="text" class="form-control" name="stops[]" placeholder="e.g., Thrissur">
+                <input type="time" class="form-control" name="stop_times[]" placeholder="Arrival time">
+                <button type="button" class="btn btn-outline-danger remove-stop">
+                    <i class="fas fa-trash"></i>
+                </button>
+            `;
+            container.appendChild(stopDiv);
+            stopCount++;
+        });
+
+        document.addEventListener('click', function(e) {
+            if (e.target.classList.contains('remove-stop') || e.target.parentElement.classList.contains('remove-stop')) {
+                const stopItem = e.target.closest('.stop-item');
+                if (stopItem && document.querySelectorAll('.stop-item').length > 1) {
+                    stopItem.remove();
+                    stopCount--;
+                }
+            }
+        });
+
+        // Form submission
+        document.getElementById('addBusForm').addEventListener('submit', function(e) {
+            const btn = document.getElementById('submitBtn');
+            const originalText = btn.innerHTML;
+
+            // Show loading state
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Adding Bus...';
+
+            // Add timeout to prevent hanging
+            setTimeout(() => {
+                if (btn.disabled) {
+                    btn.disabled = false;
+                    btn.innerHTML = originalText;
+                }
+            }, 10000); // 10 second timeout
+        });
+
+        // Form validation
+        document.getElementById('bus_name').addEventListener('blur', function() {
+            if (!this.value.trim()) {
+                this.setCustomValidity('Bus name is required.');
+                this.reportValidity();
+            } else {
+                this.setCustomValidity('');
+            }
+        });
+
+        document.getElementById('source').addEventListener('blur', function() {
+            if (!this.value.trim()) {
+                this.setCustomValidity('Source city is required.');
+                this.reportValidity();
+            } else {
+                this.setCustomValidity('');
+            }
+        });
+
+        document.getElementById('destination').addEventListener('blur', function() {
+            if (!this.value.trim()) {
+                this.setCustomValidity('Destination city is required.');
+                this.reportValidity();
+            } else {
+                this.setCustomValidity('');
+            }
+        });
     </script>
 </body>
 </html>
