@@ -88,8 +88,19 @@
                         </h5>
                     </div>
                     <div class="card-body">
-                        <form method="POST" id="paymentForm">
+                        <form method="POST" action="{{ url_for('user.payment') }}" >
                             <div class="row g-3">
+                                <div class="row">
+                                    <div class="col-12">
+                                        <label class="form-label">Contact Number</label>
+                                        <input type="text" name="contact_number" class="form-control" required>
+                                    </div>
+                                
+                                    <div class="col-12">
+                                        <label class="form-label">Email</label>
+                                        <input type="email" name="email" class="form-control" required>
+                                    </div>
+                                </div>
                                 <!-- Payment Methods -->
                                 <div class="col-12">
                                     <label class="form-label">Select Payment Method</label>
@@ -154,7 +165,7 @@
                                 <a href="{{ url_for('user.select_seats', bus_id=bus.id) }}" class="btn btn-outline-secondary me-3">
                                     <i class="fas fa-arrow-left me-1"></i>Back to Seats
                                 </a>
-                                <button type="submit" class="btn btn-success btn-lg" id="payBtn">
+                                <button type="submit" class="btn btn-success btn-lg" >
                                     <i class="fas fa-lock me-2"></i>Pay ₹{{ total_amount }}
                                 </button>
                             </div>
@@ -173,67 +184,8 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script>
-        // Payment form handling
-        document.getElementById('paymentForm').addEventListener('submit', function(e) {
-            // Validate form
-            if (!this.checkValidity()) {
-                e.preventDefault();
-                e.stopPropagation();
-                this.classList.add('was-validated');
-                alert('Please complete all required fields.');
-                return false;
-            }
-
-            // Validate payment method is selected
-            const paymentMethod = document.querySelector('input[name="payment_method"]:checked');
-            if (!paymentMethod) {
-                e.preventDefault();
-                e.stopPropagation();
-                alert('Please select a payment method.');
-                return false;
-            }
-
-            // Validate terms accepted
-            const termsCheckbox = document.getElementById('terms');
-            if (!termsCheckbox || !termsCheckbox.checked) {
-                e.preventDefault();
-                e.stopPropagation();
-                alert('Please accept the terms and conditions.');
-                return false;
-            }
-
-            const payBtn = document.getElementById('payBtn');
-            const originalText = payBtn.innerHTML;
-
-            // Show loading state
-            payBtn.disabled = true;
-            payBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Processing...';
-
-            // Allow form submission to proceed normally
-            // The server will handle the actual payment processing
-        });
-
-        // Payment method selection
-        document.querySelectorAll('input[name="payment_method"]').forEach(radio => {
-            radio.addEventListener('change', function() {
-                // Remove selected class from all options
-                document.querySelectorAll('.payment-option').forEach(option => {
-                    option.classList.remove('selected');
-                });
-
-                // Add selected class to chosen option
-                if (this.checked) {
-                    this.closest('.payment-option').classList.add('selected');
-                }
-            });
-        });
-
-        // Form reset on page load
-        window.addEventListener('load', function() {
-            document.getElementById('paymentForm').classList.remove('was-validated');
-        });
-    </script>
+    
+    
 
     <style>
         .payment-methods {

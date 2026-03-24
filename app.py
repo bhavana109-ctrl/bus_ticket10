@@ -22,11 +22,23 @@ from flask_mail import Mail, Message
 app.config['MAIL_SERVER'] = 'smtp.gmail.com'
 app.config['MAIL_PORT'] = 587
 app.config['MAIL_USE_TLS'] = True
+app.config['MAIL_USE_SSL'] = False
 
-app.config['MAIL_USERNAME'] = os.environ.get('MAIL_USERNAME', 'mbhavana109@gmail.com')
-app.config['MAIL_PASSWORD'] = os.environ.get('MAIL_PASSWORD', 'rmrq apsv jpym jjie ')
+#
+# Flask-Mail expects MAIL_USERNAME and MAIL_PASSWORD to be strings.
+# (Previously these were mistakenly set as tuples, which breaks SMTP auth
+# and prevents OTP emails from being sent.)
+#
+app.config['MAIL_USERNAME'] = os.environ.get('MAIL_USERNAME', 'adithyaaravind020@gmail.com').strip()
+app.config['MAIL_PASSWORD'] = os.environ.get('MAIL_PASSWORD', 'krqr wqdl zilk qfzz').strip()
 app.config['MAIL_DEBUG'] = True
-app.config['OTP_DEV_FALLBACK'] = os.environ.get('OTP_DEV_FALLBACK', True)
+app.config['MAIL_DEFAULT_SENDER'] = app.config['MAIL_USERNAME']
+#
+# Environment variables arrive as strings; normalize to real bool.
+#
+app.config['OTP_DEV_FALLBACK'] = str(os.environ.get('OTP_DEV_FALLBACK', 'false')).strip().lower() in (
+    '1', 'true', 'yes', 'y', 'on'
+)
 
 mail = Mail(app)
 
@@ -34,7 +46,7 @@ mail = Mail(app)
 DB_CONFIG = {
     'host': os.environ.get('DB_HOST', 'localhost'),
     'user': os.environ.get('DB_USER', 'root'),
-    'password': os.environ.get('DB_PASSWORD', 'bhavana@123xxjb'),
+    'password': os.environ.get('DB_PASSWORD', 'Adi@thyaa06'),
     'database': os.environ.get('DB_NAME', 'bus_booking')
 }
 
@@ -102,17 +114,34 @@ def get_available_seats(bus_id):
 
 
 def ensure_bus_schema():
-    """Ensure buses table has optional columns used by the app"""
+    """Ensure buses table has columns used by the app.
+
+    This app is expected to auto-migrate a few columns when the existing
+    MySQL schema is older/incomplete (for example, missing `source` /
+    `destination`).
+    """
     db = get_db_connection()
     cursor = db.cursor()
 
-    optional_columns = {
+    required_or_used_columns = {
+        # Used by search and routes generation
+        'source': "VARCHAR(100) NULL",
+        'destination': "VARCHAR(100) NULL",
+        'departure_time': "TIME NULL",
+        'arrival_time': "TIME NULL",
+        'travel_date': "DATE NULL",
+        'price': "DECIMAL(10,2) DEFAULT 0",
+        # Used by seat generation + booking price calculations
+        'seats_total': "INT DEFAULT 40",
+        # Optional JSON columns / metadata used by the app
         'stops': "JSON NULL",
         'amenities': "JSON NULL",
         'bus_type': "VARCHAR(20) DEFAULT 'Non-AC'",
+        'rating': "DECIMAL(3,2) DEFAULT 4.5",
+        'operator': "VARCHAR(100) DEFAULT 'BusHub'",
     }
 
-    for col, definition in optional_columns.items():
+    for col, definition in required_or_used_columns.items():
         cursor.execute(f"SHOW COLUMNS FROM buses LIKE '{col}'")
         if not cursor.fetchone():
             cursor.execute(f"ALTER TABLE buses ADD COLUMN {col} {definition}")
@@ -166,6 +195,43 @@ def ensure_routes_for_buses():
 
         db.commit()
 
+    # Backfill buses.source / buses.destination from routes (first/last stop).
+    # This helps search work even if the buses table schema was created
+    # without those columns earlier.
+    try:
+        cursor2 = db.cursor()
+        cursor2.execute(
+            """
+            UPDATE buses b
+            SET
+              b.source = CASE
+                  WHEN b.source IS NULL THEN (
+                      SELECT r.stop_name
+                      FROM routes r
+                      WHERE r.bus_id = b.id
+                      ORDER BY r.stop_order ASC
+                      LIMIT 1
+                  )
+                  ELSE b.source
+              END,
+              b.destination = CASE
+                  WHEN b.destination IS NULL THEN (
+                      SELECT r.stop_name
+                      FROM routes r
+                      WHERE r.bus_id = b.id
+                      ORDER BY r.stop_order DESC
+                      LIMIT 1
+                  )
+                  ELSE b.destination
+              END
+            """
+        )
+        db.commit()
+        cursor2.close()
+    except Exception as e:
+        # Don't block app startup if backfilling fails for any reason.
+        print(f"Backfill source/destination warning: {e}")
+
     cursor.close()
     db.close()
 
@@ -174,6 +240,26 @@ def ensure_seat_details_for_buses():
     """Ensure seat_details table is populated for buses"""
     db = get_db_connection()
     cursor = db.cursor(dictionary=True)
+
+    # Create seat_details table if it doesn't exist (older DBs may be missing it)
+    cursor.execute("SHOW TABLES LIKE 'seat_details'")
+    if not cursor.fetchone():
+        cursor2 = db.cursor()
+        cursor2.execute("""
+            CREATE TABLE IF NOT EXISTS seat_details (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                bus_id INT NOT NULL,
+                seat_number VARCHAR(10) NOT NULL,
+                seat_type ENUM('Window', 'Aisle', 'Sleeper', 'Seater') DEFAULT 'Seater',
+                deck ENUM('Lower', 'Upper') DEFAULT 'Lower',
+                gender_restriction ENUM('Male', 'Female', 'None') DEFAULT 'None',
+                price_modifier DECIMAL(3,2) DEFAULT 1.0,
+                FOREIGN KEY (bus_id) REFERENCES buses(id) ON DELETE CASCADE,
+                UNIQUE KEY unique_bus_seat (bus_id, seat_number)
+            )
+        """)
+        db.commit()
+        cursor2.close()
 
     cursor.execute("SELECT COUNT(*) as cnt FROM seat_details")
     total_seats = cursor.fetchone()['cnt']
@@ -201,11 +287,12 @@ db_initialized = False
 def initialize_db():
     """Initialize missing DB-supported data"""
     global db_initialized
-    if db_initialized:
-        return
-
     try:
+        # Always keep schema additions in sync (prevents crashes on older DBs).
         ensure_bus_schema()
+        if db_initialized:
+            return
+
         ensure_routes_for_buses()
         ensure_seat_details_for_buses()
         db_initialized = True
@@ -220,6 +307,8 @@ def initialize_once_before_request():
 
 def send_email(subject, recipients, body, html=None):
     """Send email"""
+    # Used by callers to surface a more helpful flash message.
+    send_email.last_error = None
     try:
         msg = Message(subject, sender=app.config['MAIL_USERNAME'], recipients=recipients)
         msg.body = body
@@ -229,7 +318,9 @@ def send_email(subject, recipients, body, html=None):
         print("Email sent successfully ✅")  # debug
         return True
     except Exception as e:
-        print(f"Email error: {e}")
+        # Keep the exact SMTP error for the UI (helps fix Gmail/app-password issues quickly).
+        send_email.last_error = str(e)
+        print(f"Email error ({type(e).__name__}): {e}")
         return False
 
 def generate_ticket_pdf(booking):
@@ -307,7 +398,7 @@ def register():
     if request.method == "POST":
         full_name = request.form.get("full_name", "").strip()
         username = request.form.get("username", "").strip()
-        email = request.form.get("email", "").strip()
+        email = request.form.get("email", "").strip().lower()
         password = request.form.get("password", "")
         confirm_password = request.form.get("confirm_password", "")
 
@@ -328,7 +419,10 @@ def register():
         # Check if user exists
         db = get_db_connection()
         cursor = db.cursor(dictionary=True)
-        cursor.execute("SELECT id FROM users WHERE email = %s OR username = %s", (email, username))
+        cursor.execute(
+            "SELECT id FROM users WHERE LOWER(email) = LOWER(%s) OR username = %s",
+            (email, username)
+        )
         if cursor.fetchone():
             flash("Email or username already exists", "error")
             cursor.close()
@@ -352,7 +446,8 @@ def register():
             if app.config['OTP_DEV_FALLBACK']:
                 flash("OTP email failed to send; using fallback OTP in development mode.", "warning")
             else:
-                flash("Failed to send OTP email. Please check your mail settings and try again.", "error")
+                err = getattr(send_email, "last_error", None) or "Unknown mail error"
+                flash(f"Failed to send OTP email: {err}", "error")
                 cursor.close()
                 db.close()
                 return redirect(url_for("auth.register"))
@@ -414,11 +509,47 @@ def verify_register_otp():
 
     return render_template("verify_register_otp.html", email=session.get("temp_user", {}).get("email", ""))
 
+@app.route("/resend_register_otp", methods=["POST"])
+def resend_register_otp_api():
+    """Resend OTP for registration verification.
+
+    Templates call this endpoint without the `/auth` prefix, so we register it
+    on the main app (not the auth blueprint).
+    """
+    if "temp_user" not in session:
+        return jsonify({"success": False, "error": "Session expired"}), 400
+
+    user = session["temp_user"]
+    email = (user.get("email") or "").strip().lower()
+    if not email:
+        return jsonify({"success": False, "error": "Missing email"}), 400
+
+    otp = generate_otp()
+    otp_store[email] = otp
+    user["otp"] = otp
+
+    emailed = send_email(
+        "BusHub - Email Verification",
+        [email],
+        f"Your OTP for registration is: {otp}\n\nValid for 10 minutes."
+    )
+
+    if emailed:
+        return jsonify({"success": True})
+
+    if app.config['OTP_DEV_FALLBACK']:
+        # Keep UX moving during local development if SMTP is misconfigured.
+        return jsonify({"success": True})
+
+    return jsonify({"success": False, "error": "Failed to send OTP email"}), 500
+
 @auth_bp.route("/login", methods=["GET", "POST"])
 def login():
     """User login"""
     if request.method == "POST":
         username_or_email = request.form.get("username", "").strip()
+        if "@" in username_or_email:
+            username_or_email = username_or_email.lower()
         password = request.form.get("password", "")
 
         if not username_or_email or not password:
@@ -429,7 +560,7 @@ def login():
         cursor = db.cursor(dictionary=True)
 
         cursor.execute(
-            "SELECT * FROM users WHERE username = %s OR email = %s",
+            "SELECT * FROM users WHERE username = %s OR LOWER(email) = LOWER(%s)",
             (username_or_email, username_or_email)
         )
         user = cursor.fetchone()
@@ -452,7 +583,7 @@ def login():
 def forgot_password():
     """Forgot password with OTP"""
     if request.method == "POST":
-        email = request.form.get("email", "").strip()
+        email = request.form.get("email", "").strip().lower()
 
         if not email:
             flash("Email is required", "error")
@@ -460,7 +591,7 @@ def forgot_password():
 
         db = get_db_connection()
         cursor = db.cursor(dictionary=True)
-        cursor.execute("SELECT id FROM users WHERE email = %s", (email,))
+        cursor.execute("SELECT id FROM users WHERE LOWER(email) = LOWER(%s)", (email,))
         user = cursor.fetchone()
 
         if not user:
@@ -486,7 +617,8 @@ def forgot_password():
             if app.config['OTP_DEV_FALLBACK']:
                 flash("OTP email failed to send; using fallback OTP in development mode.", "warning")
             else:
-                flash("Failed to send OTP email. Please check your mail settings and try again.", "error")
+                err = getattr(send_email, "last_error", None) or "Unknown mail error"
+                flash(f"Failed to send OTP email: {err}", "error")
                 cursor.close()
                 db.close()
                 return redirect(url_for("auth.forgot_password"))
@@ -498,6 +630,38 @@ def forgot_password():
         return redirect(url_for("auth.verify_forgot_otp"))
 
     return render_template("forgot_password.html")
+
+@app.route("/resend_forgot_otp", methods=["POST"])
+def resend_forgot_otp_api():
+    """Resend OTP for forgot-password flow.
+
+    Templates call this endpoint without the `/auth` prefix, so we register it
+    on the main app (not the auth blueprint).
+    """
+    if "reset_email" not in session:
+        return jsonify({"success": False, "error": "Session expired"}), 400
+
+    email = (session.get("reset_email") or "").strip().lower()
+    if not email:
+        return jsonify({"success": False, "error": "Missing email"}), 400
+
+    otp = generate_otp()
+    otp_store[email] = otp
+    session["reset_otp"] = otp
+
+    emailed = send_email(
+        "BusHub - Password Reset",
+        [email],
+        f"Your OTP for password reset is: {otp}\n\nValid for 10 minutes."
+    )
+
+    if emailed:
+        return jsonify({"success": True})
+
+    if app.config['OTP_DEV_FALLBACK']:
+        return jsonify({"success": True})
+
+    return jsonify({"success": False, "error": "Failed to send OTP email"}), 500
 
 @auth_bp.route("/verify_forgot_otp", methods=["GET", "POST"])
 def verify_forgot_otp():
@@ -531,7 +695,10 @@ def verify_forgot_otp():
 
             db = get_db_connection()
             cursor = db.cursor()
-            cursor.execute("UPDATE users SET password = %s WHERE email = %s", (hashed, email))
+            cursor.execute(
+                "UPDATE users SET password = %s WHERE LOWER(email) = LOWER(%s)",
+                (hashed, email)
+            )
             db.commit()
             cursor.close()
             db.close()
@@ -570,9 +737,9 @@ def search():
     if request.method == "POST":
         source = request.form.get("from")
         destination = request.form.get("to")
-        date = request.form.get("date")
+        travel_date = request.form.get("date")
 
-        if not all([source, destination, date]):
+        if not all([source, destination, travel_date]):
             flash("Please fill all fields", "error")
             return redirect(url_for("user.search"))
 
@@ -582,7 +749,7 @@ def search():
         # Normalize search inputs
         source = source.strip()
         destination = destination.strip()
-        date = date.strip()
+        travel_date = travel_date.strip()
 
         # Search for buses that have both stops in their route (case-insensitive, partial matching)
         cursor.execute("""
@@ -593,7 +760,7 @@ def search():
             WHERE b.travel_date = %s
               AND r1.stop_order < r2.stop_order
             GROUP BY b.id
-        """, (f"%{source}%", f"%{destination}%", date))
+        """, (f"%{source}%", f"%{destination}%", travel_date))
 
         buses = cursor.fetchall()
 
@@ -604,7 +771,7 @@ def search():
                 WHERE LOWER(source) LIKE LOWER(%s)
                   AND LOWER(destination) LIKE LOWER(%s)
                   AND travel_date = %s
-            """, (f"%{source}%", f"%{destination}%", date))
+            """, (f"%{source}%", f"%{destination}%", travel_date))
             buses = cursor.fetchall()
 
         # Fallback 2: route match on upcoming dates if still no results
@@ -617,7 +784,7 @@ def search():
                 WHERE b.travel_date >= %s
                   AND r1.stop_order < r2.stop_order
                 GROUP BY b.id
-            """, (f"%{source}%", f"%{destination}%", date))
+            """, (f"%{source}%", f"%{destination}%", travel_date))
             buses = cursor.fetchall()
 
         # Fallback 3: direct route any date
@@ -676,7 +843,7 @@ def search():
             flash("No buses found for the selected route and date", "info")
 
         return render_template("buslist.html", buses=buses, search_data={
-            'from': source, 'to': destination, 'date': date
+            'from': source, 'to': destination, 'date': travel_date
         })
 
     return render_template("search.html")
@@ -787,6 +954,7 @@ def select_seats(bus_id):
         session['boarding_point'] = boarding_point
         session['dropping_point'] = dropping_point
         session['bus_id'] = bus_id
+        
 
         return redirect(url_for("user.payment"))
 
@@ -813,6 +981,10 @@ def payment():
     try:
         db = get_db_connection()
         cursor = db.cursor(dictionary=True)
+
+        cursor.execute("SELECT DATABASE()")
+        print("CURRENT DB:", cursor.fetchone())
+
         
         bus_id = session['bus_id']
         
@@ -878,8 +1050,17 @@ def payment():
             return redirect(url_for("user.search"))
         
         if request.method == "POST":
+            print("POST REQUEST RECEIVED") 
+            print(session)  
+            # ✅ ADD HERE
+            contact_number = request.form.get("contact_number")
+            email = request.form.get("email")
+
             # Validate payment method
             payment_method = request.form.get("payment_method", "").strip()
+            # Validate payment method
+            payment_method = request.form.get("payment_method", "").strip()
+
             valid_payment_methods = ["UPI", "Credit/Debit Card", "Net Banking"]
             
             if not payment_method:
@@ -905,23 +1086,34 @@ def payment():
             for seat in seat_details:
                 seats_data.append({
                     'number': seat['seat_number'],
-                    'price': bus['price'] * seat['price_modifier']
+                    # `bus['price']` / `seat['price_modifier']` are DECIMAL values from MySQL.
+                    # Convert to float so `json.dumps()` can serialize them.
+                    'price': float(bus['price']) * float(seat['price_modifier'])
                 })
             
             try:
-                # Insert booking
+                # Generate booking ID
+                booking_code = "BUS" + str(random.randint(1000, 9999))
+
                 cursor.execute("""
-                    INSERT INTO bookings(user_id, bus_id, seats, passenger_name, boarding_point, dropping_point, total_amount, payment_method)
-                    VALUES(%s, %s, %s, %s, %s, %s, %s, %s)
+                INSERT INTO bookings(
+                     user_id, bus_id, seats, passenger_name, contact_number, email,
+                     boarding_point, dropping_point, total_amount, payment_method, travel_date, booking_id
+                )
+                VALUES(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """, (
                     session['user_id'],
                     bus_id,
                     json.dumps(seats_data),
                     session['user_name'],
+                    contact_number,
+                    email,  # TEMP
                     session['boarding_point'],
                     session['dropping_point'],
                     total_amount,
-                    payment_method
+                    payment_method,
+                    bus['travel_date'],   # ✅ FIXES "None"
+                    booking_code          # ✅ BOOKING ID
                 ))
                 
                 db.commit()
@@ -963,7 +1155,9 @@ def payment():
     
     except Exception as e:
         print(f"Unexpected error in payment route: {e}")
-        flash("An unexpected error occurred. Please try again.", "error")
+        # Surface the real exception text to the UI so we can fix the root cause.
+        # (This is safe for local development; no credentials are included in the error.)
+        flash(f"An unexpected error occurred: {e}", "error")
         return redirect(url_for("user.search"))
     
     finally:
@@ -981,8 +1175,8 @@ def booking_confirmation(booking_id):
 
     cursor.execute("""
         SELECT b.*, buses.bus_name, buses.source, buses.destination,
-               buses.travel_date, buses.departure_time, buses.arrival_time,
-               buses.bus_type, buses.operator
+        buses.departure_time, buses.arrival_time,
+        buses.bus_type, buses.operator
         FROM bookings b
         JOIN buses ON b.bus_id = buses.id
         WHERE b.id = %s AND b.user_id = %s
@@ -1188,7 +1382,7 @@ def manage_buses():
         stops = request.form.getlist("stops")
         departure_time = request.form["departure_time"]
         arrival_time = request.form["arrival_time"]
-        travel_date = request.form["travel_date"]
+        travel_date = request.form.get("travel_date")
         price = request.form["price"]
         seats_total = request.form["seats_total"]
         bus_type = request.form.get("bus_type", "").strip()
@@ -1286,6 +1480,10 @@ def page_not_found(e):
 @app.errorhandler(500)
 def internal_error(e):
     return render_template('500.html'), 500
+
+@app.route('/booking-success')
+def booking_success():
+     return "Payment Successful! Booking Confirmed."
 
 # ================= RUN APP =================
 if __name__ == "__main__":

@@ -364,8 +364,8 @@ body {
 
 /* Booked seat */
 .seat.booked {
-    background: #b0b0b0;
-    color: #555;
+    background: #dc3545; /* bootstrap danger red */
+    color: #fff;
     cursor: not-allowed;
 }
 

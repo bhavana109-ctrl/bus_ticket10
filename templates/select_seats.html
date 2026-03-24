@@ -41,6 +41,18 @@
     </nav>
 
     <div class="container py-4">
+        <!-- Flash Messages -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible fade show mb-3" role="alert">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
         <!-- Bus Info -->
         <div class="row mb-4">
             <div class="col-12">
@@ -177,7 +189,8 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         const totalSeats = {{ bus.seats_total }};
-        const bookedSeats = {{ booked_seats|tojson }};
+        // Normalize to string to make sure comparisons work even if DB JSON stored numbers.
+        const bookedSeats = {{ booked_seats|tojson }}.map(String);
         const seatPrice = {{ bus.price }};
         const routes = {{ routes|tojson }};
 
@@ -196,9 +209,8 @@
                 // Left side seats (Column A)
                 for (let j = 0; j < 2 && (i + j) <= totalSeats; j++) {
                     const seatIndex = i + j;
-                    const rowNum = Math.ceil(seatIndex / 2);
-                    const seatLetter = seatIndex % 2 === 1 ? 'A' : 'B';
-                    const seatNum = rowNum + seatLetter;
+                    // DB uses numeric seat_numbers: "1", "2", ..., "40"
+                    const seatNum = String(seatIndex);
                     const seat = createSeat(seatNum);
                     row.appendChild(seat);
                 }
@@ -211,9 +223,7 @@
                 // Right side seats (Column A, B)
                 for (let j = 2; j < 4 && (i + j) <= totalSeats; j++) {
                     const seatIndex = i + j;
-                    const rowNum = Math.ceil(seatIndex / 2);
-                    const seatLetter = seatIndex % 2 === 1 ? 'A' : 'B';
-                    const seatNum = rowNum + seatLetter;
+                    const seatNum = String(seatIndex);
                     const seat = createSeat(seatNum);
                     row.appendChild(seat);
                 }
