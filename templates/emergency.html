@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Emergency - BusHub</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .emergency-container {
+            max-width: 800px;
+            margin: 20px auto;
+        }
+        .emergency-card {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+            margin-bottom: 20px;
+        }
+        .emergency-header {
+            background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+            color: white;
+            padding: 2rem;
+            text-align: center;
+        }
+        .emergency-body {
+            padding: 2rem;
+        }
+        .contact-card {
+            background: #f8f9fa;
+            padding: 1.5rem;
+            border-radius: 10px;
+            margin: 1rem 0;
+            border-left: 4px solid #dc3545;
+        }
+        .emergency-btn {
+            background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+            border: none;
+            padding: 15px 30px;
+            border-radius: 25px;
+            color: white;
+            font-weight: bold;
+            font-size: 1.1rem;
+            transition: transform 0.2s;
+            display: inline-block;
+            text-decoration: none;
+        }
+        .emergency-btn:hover {
+            transform: translateY(-2px);
+            color: white;
+            text-decoration: none;
+        }
+        .emergency-btn i {
+            margin-right: 10px;
+        }
+        .alert-emergency {
+            background: linear-gradient(135deg, #ffeaa7 0%, #fab1a0 100%);
+            border: none;
+            border-left: 4px solid #e17055;
+        }
+        .pulse {
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container emergency-container">
+        <!-- Emergency Alert -->
+        <div class="alert alert-emergency pulse" role="alert">
+            <div class="d-flex align-items-center">
+                <i class="fas fa-exclamation-triangle fa-2x me-3 text-danger"></i>
+                <div>
+                    <h4 class="alert-heading mb-1">Emergency Situation?</h4>
+                    <p class="mb-0">If you're in immediate danger or need urgent assistance, call emergency services immediately!</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Emergency Card -->
+        <div class="emergency-card">
+            <!-- Header -->
+            <div class="emergency-header">
+                <i class="fas fa-ambulance fa-4x mb-3"></i>
+                <h2>Emergency Contacts & Support</h2>
+                <p class="mb-0">We're here to help you 24/7</p>
+            </div>
+
+            <!-- Body -->
+            <div class="emergency-body">
+                <!-- Emergency Numbers -->
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="contact-card">
+                            <h5 class="text-danger"><i class="fas fa-phone-volume"></i> Emergency Services</h5>
+                            <p class="mb-2"><strong>Police:</strong> <a href="tel:100" class="text-danger">100</a></p>
+                            <p class="mb-2"><strong>Fire:</strong> <a href="tel:101" class="text-danger">101</a></p>
+                            <p class="mb-2"><strong>Ambulance:</strong> <a href="tel:102" class="text-danger">102</a></p>
+                            <p class="mb-0"><strong>Women Helpline:</strong> <a href="tel:1091" class="text-danger">1091</a></p>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="contact-card">
+                            <h5 class="text-primary"><i class="fas fa-headset"></i> BusHub Support</h5>
+                            <p class="mb-2"><strong>Customer Care:</strong> <a href="tel:+91-1800-XXX-XXXX" class="text-primary">1800-XXX-XXXX</a></p>
+                            <p class="mb-2"><strong>WhatsApp:</strong> <a href="https://wa.me/919876543210" class="text-success">+91 98765 43210</a></p>
+                            <p class="mb-2"><strong>Email:</strong> <a href="mailto:emergency@bushub.com" class="text-primary">emergency@bushub.com</a></p>
+                            <p class="mb-0"><strong>Available:</strong> 24/7</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Quick Actions -->
+                <div class="row mt-4">
+                    <div class="col-md-4 text-center">
+                        <a href="tel:100" class="emergency-btn">
+                            <i class="fas fa-phone"></i>Call Police
+                        </a>
+                    </div>
+                    <div class="col-md-4 text-center">
+                        <a href="tel:+91-1800-XXX-XXXX" class="emergency-btn">
+                            <i class="fas fa-headset"></i>Call Support
+                        </a>
+                    </div>
+                    <div class="col-md-4 text-center">
+                        <a href="https://wa.me/919876543210" class="emergency-btn">
+                            <i class="fab fa-whatsapp"></i>WhatsApp Us
+                        </a>
+                    </div>
+                </div>
+
+                <!-- Report Emergency Form -->
+                <div class="contact-card mt-4">
+                    <h5 class="text-warning"><i class="fas fa-exclamation-circle"></i> Report an Emergency</h5>
+                    <p>If you're facing any issues during your journey, please provide details below:</p>
+
+                    <form id="emergencyForm">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">Your Name</label>
+                                    <input type="text" class="form-control" id="emergencyName" required>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">Phone Number</label>
+                                    <input type="tel" class="form-control" id="emergencyPhone" required>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Booking ID (if applicable)</label>
+                            <input type="text" class="form-control" id="bookingId">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Emergency Type</label>
+                            <select class="form-select" id="emergencyType" required>
+                                <option value="">Select emergency type</option>
+                                <option value="medical">Medical Emergency</option>
+                                <option value="accident">Bus Accident</option>
+                                <option value="harassment">Harassment/Safety Concern</option>
+                                <option value="delay">Severe Delay</option>
+                                <option value="technical">Bus Breakdown</option>
+                                <option value="other">Other</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Location/Details</label>
+                            <textarea class="form-control" id="emergencyDetails" rows="3" placeholder="Please provide your current location and details of the emergency..." required></textarea>
+                        </div>
+                        <div class="text-center">
+                            <button type="submit" class="btn emergency-btn">
+                                <i class="fas fa-paper-plane"></i>Send Emergency Report
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Safety Tips -->
+                <div class="contact-card">
+                    <h5 class="text-success"><i class="fas fa-shield-alt"></i> Safety Tips</h5>
+                    <ul class="mb-0">
+                        <li>Keep emergency numbers saved in your phone</li>
+                        <li>Share your journey details with family/friends</li>
+                        <li>Stay aware of your surroundings</li>
+                        <li>Report any suspicious activity immediately</li>
+                        <li>Follow bus staff instructions during emergencies</li>
+                    </ul>
+                </div>
+
+                <!-- Footer -->
+                <div class="text-center mt-4">
+                    <p class="text-muted">
+                        <strong>BusHub</strong> - Your safety is our priority<br>
+                        Emergency response time: Within 30 minutes
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Emergency form submission
+        document.getElementById('emergencyForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+
+            const formData = {
+                name: document.getElementById('emergencyName').value,
+                phone: document.getElementById('emergencyPhone').value,
+                bookingId: document.getElementById('bookingId').value,
+                type: document.getElementById('emergencyType').value,
+                details: document.getElementById('emergencyDetails').value,
+                timestamp: new Date().toISOString()
+            };
+
+            // Here you would typically send this data to your server
+            // For now, we'll show a confirmation and suggest calling emergency services
+            alert('Emergency report submitted! Our team will contact you within 30 minutes. If this is a life-threatening emergency, please call 100 immediately.');
+
+            // Reset form
+            this.reset();
+
+            // You could also send this data via AJAX to your backend
+            console.log('Emergency Report:', formData);
+        });
+
+        // Add click tracking for emergency buttons
+        document.querySelectorAll('.emergency-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                // Track emergency button clicks for monitoring
+                console.log('Emergency button clicked:', this.textContent.trim());
+            });
+        });
+    </script>
+</body>
+</html>

@@ -511,3 +511,30 @@ body {
     padding: 0.25rem 0.5rem;
     border-radius: 4px;
 }
+
+/* ===== POPULAR ROUTES ===== */
+.route-card {
+    border: 2px solid #e9ecef;
+    border-radius: 12px;
+    transition: all 0.3s ease;
+    cursor: pointer;
+}
+
+.route-card:hover {
+    border-color: #667eea;
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(102, 126, 234, 0.2);
+}
+
+.route-path {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 0.5rem;
+}
+
+.route-city {
+    font-weight: 600;
+    color: #2c3e50;
+    font-size: 1.1rem;
+}

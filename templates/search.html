@@ -31,6 +31,11 @@
                         </a>
                     </li>
                     <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('user.rate_site') }}">
+                            <i class="fas fa-star me-1"></i>Rate Site
+                        </a>
+                    </li>
+                    <li class="nav-item">
                         <a class="nav-link" href="{{ url_for('auth.logout') }}">
                             <i class="fas fa-sign-out-alt me-1"></i>Logout
                         </a>
@@ -102,6 +107,31 @@
                         </p>
                     </div>
                 </div>
+
+                <!-- Popular Routes Section -->
+                {% if popular_routes %}
+                <div class="mt-5">
+                    <h4 class="text-center mb-4">
+                        <i class="fas fa-route text-primary me-2"></i>Popular Routes
+                    </h4>
+                    <div class="row g-3">
+                        {% for route in popular_routes %}
+                        <div class="col-md-6 col-lg-4">
+                            <div class="card route-card h-100" onclick="selectRoute('{{ route.source }}', '{{ route.destination }}')">
+                                <div class="card-body text-center">
+                                    <div class="route-path">
+                                        <span class="route-city">{{ route.source }}</span>
+                                        <i class="fas fa-arrow-right mx-2 text-primary"></i>
+                                        <span class="route-city">{{ route.destination }}</span>
+                                    </div>
+                                    <small class="text-muted">{{ route.bus_count }} bus{{ 'es' if route.bus_count != 1 else '' }} available</small>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
             </div>
         </div>
     </div>
@@ -114,6 +144,14 @@
         dateInput.setAttribute('min', today);
         if (!dateInput.value) {
             dateInput.value = today;
+        }
+
+        // Function to select a popular route
+        function selectRoute(from, to) {
+            document.getElementById('from').value = from;
+            document.getElementById('to').value = to;
+            // Scroll to the form
+            document.querySelector('.form-container').scrollIntoView({ behavior: 'smooth' });
         }
     </script>
 </body>

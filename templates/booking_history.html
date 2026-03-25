@@ -31,6 +31,11 @@
                         </a>
                     </li>
                     <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('user.rate_site') }}">
+                            <i class="fas fa-star me-1"></i>Rate Site
+                        </a>
+                    </li>
+                    <li class="nav-item">
                         <a class="nav-link" href="{{ url_for('auth.logout') }}">
                             <i class="fas fa-sign-out-alt me-1"></i>Logout
                         </a>
@@ -106,7 +111,7 @@
                                                     </p>
                                                     <p class="mb-1">
                                                         <i class="fas fa-clock text-primary me-2"></i>
-                                                        {{ "%02d:%02d" % (booking.departure_time.seconds // 3600, (booking.departure_time.seconds % 3600) // 60) if booking.departure_time else 'N/A' }}
+                                                        {{ booking.departure_time.strftime('%H:%M') if booking.departure_time else 'N/A' }}
                                                     </p>
                                                 </div>
                                                 <div class="col-md-6">
@@ -118,6 +123,27 @@
                                                         {% endfor %}
                                                     </p>
                                                     <p class="mb-1">
+                                                        <i class="fas fa-gamepad text-primary me-2"></i>
+                                                        Entertainment: 
+                                                        {% if booking.entertainment_items %}
+                                                            {% for item in booking.entertainment_items %}
+                                                                <span class="badge bg-info text-dark me-1">{{ item }}</span>
+                                                            {% endfor %}
+                                                        {% else %}
+                                                            <span class="text-muted">None</span>
+                                                        {% endif %}
+                                                    </p>
+                                                    <p class="mb-1">                                                        <i class="fas fa-medkit text-primary me-2"></i>
+                                                        Emergency Items: 
+                                                        {% if booking.emergency_services %}
+                                                            {% for item in booking.emergency_services %}
+                                                                <span class="badge bg-warning text-dark me-1">{{ item }}</span>
+                                                            {% endfor %}
+                                                        {% else %}
+                                                            <span class="text-muted">None</span>
+                                                        {% endif %}
+                                                    </p>
+                                                    <p class="mb-1">
                                                         <i class="fas fa-user text-primary me-2"></i>
                                                         {{ booking.passenger_name }}
                                                     </p>
@@ -127,7 +153,7 @@
                                                     </p>
                                                 </div>
                                             </div>
-                                            <div class="mt-3 d-flex gap-2">
+                                            <div class="mt-3 d-flex gap-2 flex-wrap">
                                                 <a href="{{ url_for('user.view_ticket', booking_id=booking.id) }}" class="btn btn-outline-primary btn-sm">
                                                     <i class="fas fa-eye me-1"></i>View
                                                 </a>
@@ -141,6 +167,11 @@
                                                 <button class="btn btn-outline-danger btn-sm" onclick="cancelBooking({{ booking.id }})">
                                                     <i class="fas fa-times me-1"></i>Cancel
                                                 </button>
+                                                {% endif %}
+                                                {% if booking.status == 'confirmed' and booking.travel_date and booking.travel_date < current_date %}
+                                                <a href="{{ url_for('user.feedback', booking_id=booking.id) }}" class="btn btn-outline-info btn-sm">
+                                                    <i class="fas fa-star me-1"></i>Feedback
+                                                </a>
                                                 {% endif %}
                                             </div>
                                         </div>
@@ -175,7 +206,7 @@
                                                         </p>
                                                         <p class="mb-1">
                                                             <i class="fas fa-clock text-primary me-2"></i>
-                                                            {{ "%02d:%02d" % (booking.departure_time.seconds // 3600, (booking.departure_time.seconds % 3600) // 60) if booking.departure_time else 'N/A' }}
+                                                            {{ booking.departure_time.strftime('%H:%M') if booking.departure_time else 'N/A' }}
                                                         </p>
                                                     </div>
                                                     <div class="col-md-6">
@@ -189,6 +220,17 @@
                                                         <p class="mb-1">
                                                             <i class="fas fa-user text-primary me-2"></i>
                                                             {{ booking.passenger_name }}
+                                                        </p>
+                                                        <p class="mb-1">
+                                                            <i class="fas fa-gamepad text-primary me-2"></i>
+                                                            Entertainment: 
+                                                            {% if booking.entertainment_items %}
+                                                                {% for item in booking.entertainment_items %}
+                                                                    <span class="badge bg-info text-dark me-1">{{ item }}</span>
+                                                                {% endfor %}
+                                                            {% else %}
+                                                                <span class="text-muted">None</span>
+                                                            {% endif %}
                                                         </p>
                                                         <p class="mb-1">
                                                             <i class="fas fa-rupee-sign text-success me-2"></i>
@@ -243,7 +285,7 @@
                                                         </p>
                                                         <p class="mb-1">
                                                             <i class="fas fa-clock text-primary me-2"></i>
-                                                            {{ "%02d:%02d" % (booking.departure_time.seconds // 3600, (booking.departure_time.seconds % 3600) // 60) if booking.departure_time else 'N/A' }}
+                                                            {{ booking.departure_time.strftime('%H:%M') if booking.departure_time else 'N/A' }}
                                                         </p>
                                                     </div>
                                                     <div class="col-md-6">
@@ -255,8 +297,30 @@
                                                             {% endfor %}
                                                         </p>
                                                         <p class="mb-1">
+                                                            <i class="fas fa-medkit text-primary me-2"></i>
+                                                            Emergency Items: 
+                                                            {% if booking.emergency_services %}
+                                                                {% for item in booking.emergency_services %}
+                                                                    <span class="badge bg-warning text-dark me-1">{{ item }}</span>
+                                                                {% endfor %}
+                                                            {% else %}
+                                                                <span class="text-muted">None</span>
+                                                            {% endif %}
+                                                        </p>
+                                                        <p class="mb-1">
                                                             <i class="fas fa-user text-primary me-2"></i>
                                                             {{ booking.passenger_name }}
+                                                        </p>
+                                                        <p class="mb-1">
+                                                            <i class="fas fa-gamepad text-primary me-2"></i>
+                                                            Entertainment: 
+                                                            {% if booking.entertainment_items %}
+                                                                {% for item in booking.entertainment_items %}
+                                                                    <span class="badge bg-info text-dark me-1">{{ item }}</span>
+                                                                {% endfor %}
+                                                            {% else %}
+                                                                <span class="text-muted">None</span>
+                                                            {% endif %}
                                                         </p>
                                                         <p class="mb-1">
                                                             <i class="fas fa-rupee-sign text-success me-2"></i>
@@ -305,7 +369,7 @@
                                                         </p>
                                                         <p class="mb-1">
                                                             <i class="fas fa-clock text-primary me-2"></i>
-                                                            {{ "%02d:%02d" % (booking.departure_time.seconds // 3600, (booking.departure_time.seconds % 3600) // 60) if booking.departure_time else 'N/A' }}
+                                                            {{ booking.departure_time.strftime('%H:%M') if booking.departure_time else 'N/A' }}
                                                         </p>
                                                     </div>
                                                     <div class="col-md-6">
@@ -315,6 +379,17 @@
                                                             {% for seat in booking.seats_list %}
                                                                 <span class="badge bg-light text-dark me-1">{{ seat.number }}</span>
                                                             {% endfor %}
+                                                        </p>
+                                                        <p class="mb-1">
+                                                            <i class="fas fa-medkit text-primary me-2"></i>
+                                                            Emergency Items: 
+                                                            {% if booking.emergency_services %}
+                                                                {% for item in booking.emergency_services %}
+                                                                    <span class="badge bg-warning text-dark me-1">{{ item }}</span>
+                                                                {% endfor %}
+                                                            {% else %}
+                                                                <span class="text-muted">None</span>
+                                                            {% endif %}
                                                         </p>
                                                         <p class="mb-1">
                                                             <i class="fas fa-user text-primary me-2"></i>

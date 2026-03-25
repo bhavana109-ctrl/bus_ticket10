@@ -174,7 +174,7 @@
                                                 <td>
                                                     {{ booking.travel_date.strftime('%d %b %Y') if booking.travel_date else 'N/A' }}
                                                     <br>
-                                                    <small class="text-muted">{{ "%02d:%02d" % (booking.departure_time.seconds // 3600, (booking.departure_time.seconds % 3600) // 60) if booking.departure_time else 'N/A' }}</small>
+                                                    <small class="text-muted">{{ booking.departure_time.strftime('%H:%M') if booking.departure_time else 'N/A' }}</small>
                                                 </td>
                                                 <td>
                                                     <span class="badge bg-info">{{ booking.seats_booked or 0 }}</span>

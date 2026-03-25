@@ -7,9 +7,94 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        .seat-layout {
+            background: #fff;
+            border-radius: 18px;
+            box-shadow: 0 12px 30px rgba(16, 24, 40, 0.08);
+            padding: 1.5rem;
+        }
+
+        .seat-legend {
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .legend-color {
+            width: 18px;
+            height: 18px;
+            border-radius: 4px;
+        }
+
+        .bus-front {
+            background: #f8f9fa;
+            border: 1px dashed #ced4da;
+            border-radius: 12px;
+            display: inline-block;
+            padding: 1rem 2rem;
+        }
+
+        #seatsContainer {
+            background: linear-gradient(180deg, #f8fbff 0%, #ffffff 100%);
+            border: 1px solid #e9ecef;
+            border-radius: 18px;
+            padding: 1.25rem;
+        }
+
+        .seat {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            margin: 0 6px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 0.95rem;
+            border: 2px solid transparent;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            user-select: none;
+        }
+
+        .seat.available {
+            background: #d1f7dc;
+            color: #116530;
+            cursor: pointer;
+        }
+
+        .seat.available:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 16px rgba(17, 101, 48, 0.15);
+        }
+
+        .seat.selected {
+            background: #0d6efd;
+            color: #fff;
+            cursor: pointer;
+        }
+
+        .seat.booked {
+            background: #f8d7da;
+            color: #842029;
+            cursor: not-allowed;
+        }
+
+        .selection-stat {
+            background: #f8f9fa;
+            border-radius: 12px;
+            padding: 0.85rem 1rem;
+            margin-bottom: 0.75rem;
+        }
+    </style>
 </head>
 <body>
-    <!-- Navigation -->
     <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
         <div class="container">
             <a class="navbar-brand fw-bold" href="{{ url_for('user.search') }}">
@@ -41,7 +126,6 @@
     </nav>
 
     <div class="container py-4">
-        <!-- Flash Messages -->
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
                 {% for category, message in messages %}
@@ -53,77 +137,138 @@
             {% endif %}
         {% endwith %}
 
-        <!-- Bus Info -->
-        <div class="row mb-4">
-            <div class="col-12">
-                <div class="card">
-                    <div class="card-body">
-                        <div class="row align-items-center">
-                            <div class="col-md-8">
-                                <h4 class="mb-1">{{ bus.bus_name }}</h4>
-                                <p class="mb-1">
-                                    <i class="fas fa-route me-2"></i>
-                                    {% if bus.stops_list %}
-                                        {{ bus.stops_list[0] }} → {{ bus.stops_list[-1] }}
-                                    {% else %}
-                                        {{ bus.source }} → {{ bus.destination }}
-                                    {% endif %}
-                                </p>
-                                <p class="mb-0 text-muted">
-                                    <i class="fas fa-calendar me-1"></i>{{ display_travel_date }} |
-                                    <i class="fas fa-clock me-1"></i>{{ bus.departure_time }} - {{ bus.arrival_time }} |
-                                    <i class="fas fa-clock me-1"></i>{{ bus.duration }}
-                                </p>
-                            </div>
-                            <div class="col-md-4 text-md-end">
-                                <div class="h5 text-primary mb-0">₹{{ bus.price }}</div>
-                                <small class="text-muted">per seat</small>
-                            </div>
-                        </div>
+        <div class="card mb-4">
+            <div class="card-body">
+                <div class="row align-items-center">
+                    <div class="col-md-8">
+                        <h4 class="mb-1">{{ bus.bus_name }}</h4>
+                        <p class="mb-1">
+                            <i class="fas fa-route me-2"></i>
+                            {% if bus.stops_list %}
+                                {{ bus.stops_list[0] }} &rarr; {{ bus.stops_list[-1] }}
+                            {% else %}
+                                {{ bus.source }} &rarr; {{ bus.destination }}
+                            {% endif %}
+                        </p>
+                        <p class="mb-0 text-muted">
+                            <i class="fas fa-calendar me-1"></i>{{ display_travel_date }} |
+                            <i class="fas fa-clock me-1"></i>{{ bus.departure_time }} - {{ bus.arrival_time }} |
+                            <i class="fas fa-hourglass-half me-1"></i>{{ bus.duration }}
+                        </p>
+                    </div>
+                    <div class="col-md-4 text-md-end">
+                        <div class="h5 text-primary mb-0">&#8377;{{ "%.2f"|format(bus.price) }}</div>
+                        <small class="text-muted">per seat</small>
                     </div>
                 </div>
             </div>
         </div>
 
-        <div class="row">
-            <!-- Boarding & Dropping Points -->
-            <div class="col-lg-4 mb-4">
-                <div class="card">
+        <div class="row g-4">
+            <div class="col-lg-4">
+                <div class="card mb-3">
                     <div class="card-header">
                         <h5 class="mb-0">
-                            <i class="fas fa-map-marker-alt me-2"></i>Boarding & Dropping
+                            <i class="fas fa-map-marker-alt me-2"></i>Boarding and Dropping
                         </h5>
                     </div>
                     <div class="card-body">
-                        <form id="boardingForm">
-                            <div class="mb-3">
-                                <label class="form-label">Boarding Point</label>
-                                <select class="form-select" name="boarding_point" id="boarding_point" required>
-                                    <option value="">Select boarding point</option>
-                                    {% for route in routes %}
+                        <div class="mb-3">
+                            <label class="form-label">Boarding Point</label>
+                            <select class="form-select" id="boarding_point" required>
+                                <option value="">Select boarding point</option>
+                                {% for route in routes %}
                                     <option value="{{ route.stop_name }}">{{ route.stop_name }}</option>
-                                    {% endfor %}
-                                </select>
-                            </div>
+                                {% endfor %}
+                            </select>
+                        </div>
 
-                            <div class="mb-3">
-                                <label class="form-label">Dropping Point</label>
-                                <select class="form-select" name="dropping_point" id="dropping_point" required>
-                                    <option value="">Select dropping point</option>
-                                    {% for route in routes %}
+                        <div class="mb-0">
+                            <label class="form-label">Dropping Point</label>
+                            <select class="form-select" id="dropping_point" required>
+                                <option value="">Select dropping point</option>
+                                {% for route in routes %}
                                     <option value="{{ route.stop_name }}">{{ route.stop_name }}</option>
-                                    {% endfor %}
-                                </select>
-                            </div>
-                        </form>
+                                {% endfor %}
+                            </select>
+                        </div>
                     </div>
+                </div>
+
+                <div class="card mb-3">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="fas fa-medkit me-2"></i>Emergency Medical Kit
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <p class="mb-3">Select items you may need during travel:</p>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" value="Vomiting Tablet" id="serviceVomiting" name="emergency_services">
+                            <label class="form-check-label" for="serviceVomiting">Tablet for Vomiting</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" value="Vicks" id="serviceVicks" name="emergency_services">
+                            <label class="form-check-label" for="serviceVicks">Vicks</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" value="Sanitary Pads" id="serviceSanitary" name="emergency_services">
+                            <label class="form-check-label" for="serviceSanitary">Sanitary Pads</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" value="Diapers" id="serviceDiapers" name="emergency_services">
+                            <label class="form-check-label" for="serviceDiapers">Diapers</label>
+                        </div>
+                        <small class="text-muted d-block mt-3">These items will be added to your booking request if available onboard.</small>
+                    </div>
+                </div>
+
+                <div class="card mb-3">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="fas fa-gamepad me-2"></i>Entertainment Options
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <p class="mb-3">Select entertainment items for your trip:</p>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" value="Toys for Kids" id="entertainmentToys" name="entertainment_items">
+                            <label class="form-check-label" for="entertainmentToys">Toys for Kids</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" value="Coloring Books" id="entertainmentColoring" name="entertainment_items">
+                            <label class="form-check-label" for="entertainmentColoring">Coloring Books</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" value="Teddy Bear" id="entertainmentTeddy" name="entertainment_items">
+                            <label class="form-check-label" for="entertainmentTeddy">Teddy Bear</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" value="Books" id="entertainmentBooks" name="entertainment_items">
+                            <label class="form-check-label" for="entertainmentBooks">Books to Read</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" value="Playing Cards" id="entertainmentCards" name="entertainment_items">
+                            <label class="form-check-label" for="entertainmentCards">Playing Cards</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" value="Funny Games" id="entertainmentGames" name="entertainment_items">
+                            <label class="form-check-label" for="entertainmentGames">Funny Games</label>
+                        </div>
+                        <small class="text-muted d-block mt-3">Entertainment requests are subject to availability and extra charges may apply.</small>
+                    </div>
+                </div>
+
+                <div class="selection-stat">
+                    <strong>Available seats:</strong> {{ bus.available_seats }}
+                </div>
+                <div class="selection-stat">
+                    <strong>Booked seats:</strong> {{ booked_seats|length }}
                 </div>
             </div>
 
-            <!-- Seat Selection -->
             <div class="col-lg-8">
                 <div class="seat-layout">
-                    <!-- Legend -->
                     <div class="seat-legend mb-4">
                         <div class="legend-item">
                             <div class="legend-color bg-success"></div>
@@ -139,7 +284,6 @@
                         </div>
                     </div>
 
-                    <!-- Bus Layout -->
                     <div class="text-center mb-4">
                         <div class="bus-front">
                             <i class="fas fa-steering-wheel fa-2x text-muted"></i>
@@ -151,27 +295,29 @@
                         <input type="hidden" name="seats" id="selectedSeatsInput">
                         <input type="hidden" name="boarding_point" id="boardingInput">
                         <input type="hidden" name="dropping_point" id="droppingInput">
+                        <input type="hidden" name="emergency_services_str" id="emergencyServicesInput">
+                        <input type="hidden" name="entertainment_items_str" id="entertainmentItemsInput">
 
                         <div id="seatsContainer" class="mb-4"></div>
 
-                        <!-- Booking Summary -->
                         <div class="card">
                             <div class="card-body">
                                 <h5 class="card-title">Booking Summary</h5>
                                 <div class="row">
                                     <div class="col-sm-6">
                                         <p class="mb-1"><strong>Selected Seats:</strong></p>
-                                        <p id="selectedSeatsText" class="text-primary">None</p>
+                                        <p id="selectedSeatsText" class="text-primary mb-2">None</p>
+                                        <p class="mb-0"><strong>Boarding:</strong> <span id="selectedBoardingText">Not selected</span></p>
                                     </div>
                                     <div class="col-sm-6">
-                                        <p class="mb-1"><strong>Total Amount:</strong></p>
-                                        <p id="totalAmount" class="h5 text-success">₹0</p>
+                                        <p class="mb-1"><strong>Dropping:</strong> <span id="selectedDroppingText">Not selected</span></p>
+                                        <p class="mb-1 mt-2"><strong>Total Amount:</strong></p>
+                                        <p id="totalAmount" class="h5 text-success mb-0">&#8377;0.00</p>
                                     </div>
                                 </div>
                             </div>
                         </div>
 
-                        <!-- Action Buttons -->
                         <div class="text-center mt-4">
                             <a href="{{ url_for('user.search') }}" class="btn btn-outline-secondary me-2">
                                 <i class="fas fa-arrow-left me-1"></i>Back to Bus List
@@ -189,43 +335,31 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         const totalSeats = {{ bus.seats_total }};
-        // Normalize to string to make sure comparisons work even if DB JSON stored numbers.
         const bookedSeats = {{ booked_seats|tojson }}.map(String);
-        const seatPrice = {{ bus.price }};
-        const routes = {{ routes|tojson }};
+        const seatPrice = Number({{ bus.price }});
 
         let selectedSeats = [];
-        let boardingPoint = '';
-        let droppingPoint = '';
+        let boardingPoint = "";
+        let droppingPoint = "";
 
         function createSeatsLayout() {
-            const container = document.getElementById('seatsContainer');
+            const container = document.getElementById("seatsContainer");
+            container.innerHTML = "";
 
-            // Create rows of seats (4 seats per row with aisle, 2 columns per side)
             for (let i = 1; i <= totalSeats; i += 4) {
-                const row = document.createElement('div');
-                row.className = 'd-flex justify-content-center align-items-center mb-3';
+                const row = document.createElement("div");
+                row.className = "d-flex justify-content-center align-items-center mb-3";
 
-                // Left side seats (Column A)
                 for (let j = 0; j < 2 && (i + j) <= totalSeats; j++) {
-                    const seatIndex = i + j;
-                    // DB uses numeric seat_numbers: "1", "2", ..., "40"
-                    const seatNum = String(seatIndex);
-                    const seat = createSeat(seatNum);
-                    row.appendChild(seat);
+                    row.appendChild(createSeat(String(i + j)));
                 }
 
-                // Aisle
-                const aisle = document.createElement('div');
-                aisle.style.width = '40px';
+                const aisle = document.createElement("div");
+                aisle.style.width = "40px";
                 row.appendChild(aisle);
 
-                // Right side seats (Column A, B)
                 for (let j = 2; j < 4 && (i + j) <= totalSeats; j++) {
-                    const seatIndex = i + j;
-                    const seatNum = String(seatIndex);
-                    const seat = createSeat(seatNum);
-                    row.appendChild(seat);
+                    row.appendChild(createSeat(String(i + j)));
                 }
 
                 container.appendChild(row);
@@ -233,16 +367,16 @@
         }
 
         function createSeat(seatNum) {
-            const div = document.createElement('div');
-            div.className = 'seat';
+            const div = document.createElement("div");
+            div.className = "seat";
             div.innerText = seatNum;
             div.dataset.seatNumber = seatNum;
 
             if (bookedSeats.includes(seatNum)) {
-                div.classList.add('booked');
+                div.classList.add("booked");
             } else {
-                div.classList.add('available');
-                div.addEventListener('click', () => toggleSeat(seatNum, div));
+                div.classList.add("available");
+                div.addEventListener("click", () => toggleSeat(seatNum, div));
             }
 
             return div;
@@ -250,49 +384,70 @@
 
         function toggleSeat(seatNum, element) {
             if (selectedSeats.includes(seatNum)) {
-                selectedSeats = selectedSeats.filter(s => s !== seatNum);
-                element.classList.remove('selected');
-                element.classList.add('available');
+                selectedSeats = selectedSeats.filter((seat) => seat !== seatNum);
+                element.classList.remove("selected");
+                element.classList.add("available");
             } else {
                 selectedSeats.push(seatNum);
-                element.classList.remove('available');
-                element.classList.add('selected');
+                selectedSeats.sort((a, b) => Number(a) - Number(b));
+                element.classList.remove("available");
+                element.classList.add("selected");
             }
 
             updateSummary();
         }
 
         function updateSummary() {
-            // Update selected seats text
-            document.getElementById('selectedSeatsText').innerText =
-                selectedSeats.length ? selectedSeats.join(', ') : 'None';
+            document.getElementById("selectedSeatsText").innerText = selectedSeats.length ? selectedSeats.join(", ") : "None";
+            document.getElementById("selectedBoardingText").innerText = boardingPoint || "Not selected";
+            document.getElementById("selectedDroppingText").innerText = droppingPoint || "Not selected";
 
-            // Update total amount
             const total = selectedSeats.length * seatPrice;
-            document.getElementById('totalAmount').innerText = '₹' + total;
+            document.getElementById("totalAmount").innerText = `₹${total.toFixed(2)}`;
 
-            // Update hidden inputs
-            document.getElementById('selectedSeatsInput').value = JSON.stringify(selectedSeats);
-            document.getElementById('boardingInput').value = boardingPoint;
-            document.getElementById('droppingInput').value = droppingPoint;
+            document.getElementById("selectedSeatsInput").value = JSON.stringify(selectedSeats);
+            document.getElementById("boardingInput").value = boardingPoint;
+            document.getElementById("droppingInput").value = droppingPoint;
 
-            // Enable/disable proceed button
-            const proceedBtn = document.getElementById('proceedBtn');
-            proceedBtn.disabled = selectedSeats.length === 0 || !boardingPoint || !droppingPoint;
+            const proceedBtn = document.getElementById("proceedBtn");
+            proceedBtn.disabled = selectedSeats.length === 0 || !boardingPoint || !droppingPoint || boardingPoint === droppingPoint;
         }
 
-        // Boarding/Dropping point change handlers
-        document.getElementById('boarding_point').addEventListener('change', function() {
+        document.getElementById("boarding_point").addEventListener("change", function() {
             boardingPoint = this.value;
             updateSummary();
         });
 
-        document.getElementById('dropping_point').addEventListener('change', function() {
+        document.getElementById("dropping_point").addEventListener("change", function() {
             droppingPoint = this.value;
             updateSummary();
         });
 
-        // Initialize
+        document.getElementById("seatForm").addEventListener("submit", function(event) {
+            if (!selectedSeats.length) {
+                event.preventDefault();
+                alert("Please select at least one seat.");
+                return;
+            }
+
+            if (!boardingPoint || !droppingPoint) {
+                event.preventDefault();
+                alert("Please choose both boarding and dropping points.");
+                return;
+            }
+
+            if (boardingPoint === droppingPoint) {
+                event.preventDefault();
+                alert("Boarding and dropping points must be different.");
+                return;
+            }
+
+            const selectedEmergencyItems = Array.from(document.querySelectorAll('input[name="emergency_services"]:checked')).map((checkbox) => checkbox.value);
+            const selectedEntertainmentItems = Array.from(document.querySelectorAll('input[name="entertainment_items"]:checked')).map((checkbox) => checkbox.value);
+            document.getElementById("emergencyServicesInput").value = JSON.stringify(selectedEmergencyItems);
+            document.getElementById("entertainmentItemsInput").value = JSON.stringify(selectedEntertainmentItems);
+        });
+
         createSeatsLayout();
         updateSummary();
     </script>

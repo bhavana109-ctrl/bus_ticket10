@@ -163,6 +163,7 @@ INSERT INTO seat_details (bus_id, seat_number, seat_type, deck, gender_restricti
     user_id INT NOT NULL,
     bus_id INT NOT NULL,
     seats JSON NOT NULL, -- Array of seat objects with details
+    emergency_services JSON NULL, -- Optional emergency medical items requested
     passenger_name VARCHAR(100) NOT NULL,
     contact_number VARCHAR(15),
     email VARCHAR(100),
@@ -176,6 +177,7 @@ INSERT INTO seat_details (bus_id, seat_number, seat_type, deck, gender_restricti
     refund_amount DECIMAL(10,2) DEFAULT 0,
     cancelled_at TIMESTAMP NULL,
     payment_method ENUM('UPI', 'Credit/Debit Card', 'Net Banking') NOT NULL,
+    payment_reference_id VARCHAR(100) NULL,
     FOREIGN KEY (user_id) REFERENCES users(id),
     FOREIGN KEY (bus_id) REFERENCES buses(id),
     CONSTRAINT check_amount CHECK (total_amount > 0),
@@ -183,3 +185,20 @@ INSERT INTO seat_details (bus_id, seat_number, seat_type, deck, gender_restricti
     INDEX idx_bus_id (bus_id),
     INDEX idx_booking_date (booking_date)
 );
+
+-- ================= SITE RATINGS TABLE =================
+CREATE TABLE IF NOT EXISTS site_ratings (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    rating INT NOT NULL CHECK (rating >= 1 AND rating <= 5),
+    review TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id),
+    UNIQUE KEY unique_user_rating (user_id)
+);
+
+-- ================= INSERT SAMPLE SITE RATINGS =================
+INSERT INTO site_ratings (user_id, rating, review) VALUES
+(1, 5, 'Excellent service! Very easy to book buses and the interface is user-friendly.'),
+(2, 4, 'Great platform for bus booking. Would love to see more payment options.'),
+(3, 5, 'Amazing experience! Fast booking process and reliable service.');

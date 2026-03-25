@@ -86,6 +86,48 @@ def calculate_duration(departure_time, arrival_time):
     minutes = (duration.seconds % 3600) // 60
     return f"{hours}h {minutes}m"
 
+
+def ensure_date(value):
+    """Normalize date-like values for templates and email rendering."""
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return value.date()
+    if hasattr(value, 'strftime'):
+        # Already date object or datetime
+        return value
+    if isinstance(value, str):
+        # Try common string formats
+        for fmt in ('%Y-%m-%d', '%Y-%m-%d %H:%M:%S', '%Y-%m-%dT%H:%M:%S'):
+            try:
+                return datetime.strptime(value, fmt).date()
+            except Exception:
+                pass
+        try:
+            return datetime.fromisoformat(value).date()
+        except Exception:
+            return value
+    return value
+
+
+def ensure_time(value):
+    """Normalize time-like values for templates and email rendering."""
+    if value is None:
+        return None
+    if hasattr(value, 'strftime'):
+        return value
+    if isinstance(value, str):
+        for fmt in ('%H:%M:%S', '%H:%M'):
+            try:
+                return datetime.strptime(value, fmt).time()
+            except Exception:
+                pass
+        return value
+    if isinstance(value, timedelta):
+        return (datetime.min + value).time()
+    return value
+
+
 def get_available_seats(bus_id):
     """Get available seats for a bus"""
     db = get_db_connection()
@@ -140,6 +182,11 @@ def ensure_bus_schema():
         'rating': "DECIMAL(3,2) DEFAULT 4.5",
         'operator': "VARCHAR(100) DEFAULT 'BusHub'",
     }
+
+    # New entertainment options for passengers (kids toys, books, games)
+    cursor.execute("SHOW COLUMNS FROM bookings LIKE 'entertainment_items'")
+    if not cursor.fetchone():
+        cursor.execute("ALTER TABLE bookings ADD COLUMN entertainment_items JSON NULL")
 
     for col, definition in required_or_used_columns.items():
         cursor.execute(f"SHOW COLUMNS FROM buses LIKE '{col}'")
@@ -347,6 +394,112 @@ def send_email(subject, recipients, body, html=None):
         send_email.last_error = str(e)
         print(f"Email error ({type(e).__name__}): {e}")
         return False
+
+def format_time_value(time_value):
+    """Return a display-friendly HH:MM string."""
+    if not time_value:
+        return "N/A"
+    if hasattr(time_value, "strftime"):
+        try:
+            return time_value.strftime("%H:%M")
+        except Exception:
+            pass
+    if hasattr(time_value, "seconds"):
+        hours = time_value.seconds // 3600
+        minutes = (time_value.seconds % 3600) // 60
+        return f"{hours:02d}:{minutes:02d}"
+    return str(time_value)
+
+def send_booking_confirmation_email(booking):
+    """Send booking confirmation email immediately after a successful booking."""
+    recipient = (booking.get("email") or "").strip()
+    if not recipient:
+        return False
+
+    seats = booking.get("seats_list") or json.loads(booking["seats"])
+    emergency_services = booking.get("emergency_services") or []
+    entertainment_items = booking.get("entertainment_items") or []
+    if isinstance(entertainment_items, str):
+        try:
+            entertainment_items = json.loads(entertainment_items)
+        except Exception:
+            entertainment_items = [entertainment_items] if entertainment_items else []
+
+    travel_date = ensure_date(booking.get("travel_date"))
+    subject = f"BusHub - Booking Confirmed - {booking['booking_id']}"
+    html_body = f"""
+    <html>
+    <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <div style="background: linear-gradient(135deg, #28a745 0%, #20c997 100%); color: white; padding: 20px; text-align: center; border-radius: 10px 10px 0 0;">
+            <h1>Booking Confirmed</h1>
+            <p>Your bus ticket has been successfully booked.</p>
+        </div>
+        <div style="background: white; padding: 20px; border: 1px solid #ddd; border-radius: 0 0 10px 10px;">
+            <h2 style="color: #333;">Booking Details</h2>
+            <p><strong>Booking ID:</strong> {booking['booking_id']}</p>
+            <p><strong>Passenger:</strong> {booking['passenger_name']}</p>
+            <p><strong>Route:</strong> {booking['source']} to {booking['destination']}</p>
+            <p><strong>Travel Date:</strong> {travel_date.strftime('%Y-%m-%d') if hasattr(travel_date, 'strftime') else (travel_date or 'N/A')}</p>
+            <p><strong>Departure:</strong> {format_time_value(ensure_time(booking.get('departure_time')))}</p>
+            <p><strong>Bus:</strong> {booking['bus_name']} ({booking['bus_type']})</p>
+            <p><strong>Seats:</strong> {', '.join([seat['number'] for seat in seats])}</p>
+            <p><strong>Total Amount:</strong> Rs. {float(booking['total_amount']):.2f}</p>
+            <p><strong>Emergency Services Requested:</strong> {', '.join(emergency_services) if emergency_services else 'None'}</p>
+            <p><strong>Entertainment Items Requested:</strong> {', '.join(entertainment_items) if entertainment_items else 'None'}</p>
+            <p style="color: #666; font-size: 12px;">Thank you for choosing BusHub. This is an automated email.</p>
+        </div>
+    </body>
+    </html>
+    """
+    return send_email(subject, [recipient], f"Booking confirmed for {booking['booking_id']}", html_body)
+
+def send_cancellation_confirmation_email(booking, refund_amount, refund_percentage=None, refund_policy=None):
+    """Send booking cancellation email immediately after a successful cancellation."""
+    recipient = (booking.get("email") or "").strip()
+    if not recipient:
+        return False
+
+    seats = booking.get("seats_list") or json.loads(booking.get("seats", "[]"))
+    travel_date = ensure_date(booking.get("travel_date") or booking.get("bus_travel_date"))
+    departure_time = format_time_value(ensure_time(booking.get("departure_time")))
+    arrival_time = format_time_value(ensure_time(booking.get("arrival_time")))
+    entertainment_items = booking.get("entertainment_items") or []
+    if isinstance(entertainment_items, str):
+        try:
+            entertainment_items = json.loads(entertainment_items)
+        except Exception:
+            entertainment_items = [entertainment_items] if entertainment_items else []
+
+    subject = f"BusHub - Booking Cancelled - {booking['booking_id']}"
+    html_body = f"""
+    <html>
+    <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <div style="background: linear-gradient(135deg, #dc3545 0%, #c82333 100%); color: white; padding: 20px; text-align: center; border-radius: 10px 10px 0 0;">
+            <h1>Booking Cancelled</h1>
+            <p>Your bus booking has been cancelled successfully.</p>
+        </div>
+        <div style="background: white; padding: 20px; border: 1px solid #ddd; border-radius: 0 0 10px 10px;">
+            <h2 style="color: #333;">Cancellation Details</h2>
+            <p><strong>Booking ID:</strong> {booking['booking_id']}</p>
+            <p><strong>Passenger:</strong> {booking['passenger_name']}</p>
+            <p><strong>Route:</strong> {booking['source']} to {booking['destination']}</p>
+            <p><strong>Bus:</strong> {booking.get('bus_name', 'N/A')} ({booking.get('bus_type', 'N/A')})</p>
+            <p><strong>Travel Date:</strong> {travel_date.strftime('%Y-%m-%d') if hasattr(travel_date, 'strftime') else (travel_date or 'N/A')}</p>
+            <p><strong>Departure:</strong> {departure_time}</p>
+            <p><strong>Arrival:</strong> {arrival_time}</p>
+            <p><strong>Seats:</strong> {', '.join([seat['number'] if isinstance(seat, dict) else str(seat) for seat in seats])}</p>
+            <p><strong>Original Amount:</strong> Rs. {float(booking['total_amount']):.2f}</p>
+            <p><strong>Refund Amount:</strong> Rs. {float(refund_amount):.2f}</p>
+            <p><strong>Refund Percentage:</strong> {refund_percentage if refund_percentage is not None else 'N/A'}%</p>
+            <p><strong>Policy:</strong> {refund_policy or '90% refund if cancelled before 24 hours, 50% refund if cancelled 2-24 hours before departure.'}</p>
+            <p><strong>Refund Timeline:</strong> 5-7 business days</p>
+            <p><strong>Entertainment Items Requested:</strong> {', '.join(entertainment_items) if entertainment_items else 'None'}</p>
+            <p style="color: #666; font-size: 12px;">This is an automated email. Please do not reply.</p>
+        </div>
+    </body>
+    </html>
+    """
+    return send_email(subject, [recipient], f"Booking cancelled for {booking['booking_id']}", html_body)
 
 def generate_ticket_pdf(booking):
     """Generate PDF ticket"""
@@ -750,6 +903,24 @@ def logout():
 
 # ================= USER BLUEPRINT =================
 
+def get_popular_routes():
+    """Get popular routes from the database"""
+    db = get_db_connection()
+    cursor = db.cursor(dictionary=True)
+    
+    # Get unique source-destination pairs from buses table
+    cursor.execute("""
+        SELECT DISTINCT source, destination, COUNT(*) as bus_count
+        FROM buses 
+        GROUP BY source, destination
+        ORDER BY bus_count DESC
+        LIMIT 10
+    """)
+    
+    routes = cursor.fetchall()
+    cursor.close()
+    return routes
+
 @user_bp.before_request
 def require_login():
     """Require login for user routes"""
@@ -873,7 +1044,7 @@ def search():
             'from': source, 'to': destination, 'date': travel_date
         })
 
-    return render_template("search.html")
+    return render_template("search.html", popular_routes=get_popular_routes())
 
 @user_bp.route("/bus/<int:bus_id>")
 def bus_details(bus_id):
@@ -976,12 +1147,35 @@ def select_seats(bus_id):
             flash("Please select boarding and dropping points", "error")
             return redirect(url_for("user.select_seats", bus_id=bus_id))
 
-        # Store selection in session
+        # Store selection and emergency service requests in session
+        emergency_services_raw = request.form.get("emergency_services_str", "[]")
+        try:
+            emergency_services = json.loads(emergency_services_raw)
+            if not isinstance(emergency_services, list):
+                emergency_services = []
+        except Exception:
+            emergency_services = request.form.getlist("emergency_services")
+
+        entertainment_items_raw = request.form.get("entertainment_items_str", "[]")
+        try:
+            entertainment_items = json.loads(entertainment_items_raw)
+            if not isinstance(entertainment_items, list):
+                entertainment_items = []
+        except Exception:
+            entertainment_items = request.form.getlist("entertainment_items")
+
+        # Fallback when hidden JSON field is absent/empty but checkbox values are present.
+        if not emergency_services:
+            emergency_services = request.form.getlist("emergency_services")
+        if not entertainment_items:
+            entertainment_items = request.form.getlist("entertainment_items")
+
         session['selected_seats'] = selected_seats
         session['boarding_point'] = boarding_point
         session['dropping_point'] = dropping_point
         session['bus_id'] = bus_id
-        
+        session['emergency_services'] = emergency_services
+        session['entertainment_items'] = entertainment_items
 
         return redirect(url_for("user.payment"))
 
@@ -1090,13 +1284,18 @@ def payment():
             print("POST REQUEST RECEIVED") 
             print(session)  
             # ✅ ADD HERE
-            contact_number = request.form.get("contact_number")
-            email = request.form.get("email")
+            contact_number = (request.form.get("contact_number") or "").strip()
+            email = (request.form.get("email") or "").strip().lower()
 
             # Validate payment method
             payment_method = request.form.get("payment_method", "").strip()
             # Validate payment method
             payment_method = request.form.get("payment_method", "").strip()
+
+            # Payment reference values (optional until validated below)
+            upi_id = (request.form.get("upi_id") or "").strip()
+            netbanking_id = (request.form.get("netbanking_id") or "").strip()
+            card_id = (request.form.get("card_id") or "").strip()
 
             valid_payment_methods = ["UPI", "Credit/Debit Card", "Net Banking"]
             
@@ -1106,7 +1305,13 @@ def payment():
                                      boarding_point=session['boarding_point'],
                                      dropping_point=session['dropping_point'],
                                      total_amount=total_amount,
-                                     display_travel_date=display_travel_date)
+                                     display_travel_date=display_travel_date,
+                                     contact_number=contact_number,
+                                     email=email,
+                                     payment_method=payment_method,
+                                     upi_id=upi_id,
+                                     netbanking_id=netbanking_id,
+                                     card_id=card_id)
             
             if payment_method not in valid_payment_methods:
                 flash("Invalid payment method selected.", "error")
@@ -1114,7 +1319,89 @@ def payment():
                                      boarding_point=session['boarding_point'],
                                      dropping_point=session['dropping_point'],
                                      total_amount=total_amount,
-                                     display_travel_date=display_travel_date)
+                                     display_travel_date=display_travel_date,
+                                     contact_number=contact_number,
+                                     email=email,
+                                     payment_method=payment_method,
+                                     upi_id=upi_id,
+                                     netbanking_id=netbanking_id,
+                                     card_id=card_id)
+
+            if not re.fullmatch(r"\d{10}", contact_number):
+                flash("Please enter a valid 10-digit contact number.", "error")
+                return render_template("payment.html", bus=bus, selected_seats=selected_seats,
+                                     boarding_point=session['boarding_point'],
+                                     dropping_point=session['dropping_point'],
+                                     total_amount=total_amount,
+                                     display_travel_date=display_travel_date,
+                                     contact_number=contact_number,
+                                     email=email,
+                                     payment_method=payment_method,
+                                     upi_id=upi_id,
+                                     netbanking_id=netbanking_id,
+                                     card_id=card_id)
+
+            if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email):
+                flash("Please enter a valid passenger email address.", "error")
+                return render_template("payment.html", bus=bus, selected_seats=selected_seats,
+                                     boarding_point=session['boarding_point'],
+                                     dropping_point=session['dropping_point'],
+                                     total_amount=total_amount,
+                                     display_travel_date=display_travel_date,
+                                     contact_number=contact_number,
+                                     email=email,
+                                     payment_method=payment_method,
+                                     upi_id=upi_id,
+                                     netbanking_id=netbanking_id,
+                                     card_id=card_id)
+
+            # Validate the method-specific payment reference ID
+            payment_reference_id = ""
+            if payment_method == "UPI":
+                payment_reference_id = upi_id
+                if not payment_reference_id:
+                    flash("Please enter your UPI ID.", "error")
+                    return render_template("payment.html", bus=bus, selected_seats=selected_seats,
+                                         boarding_point=session['boarding_point'],
+                                         dropping_point=session['dropping_point'],
+                                         total_amount=total_amount,
+                                         display_travel_date=display_travel_date,
+                                         contact_number=contact_number,
+                                         email=email,
+                                         payment_method=payment_method,
+                                         upi_id=upi_id,
+                                         netbanking_id=netbanking_id,
+                                         card_id=card_id)
+            elif payment_method == "Net Banking":
+                payment_reference_id = netbanking_id
+                if not payment_reference_id:
+                    flash("Please enter your Net Banking ID.", "error")
+                    return render_template("payment.html", bus=bus, selected_seats=selected_seats,
+                                         boarding_point=session['boarding_point'],
+                                         dropping_point=session['dropping_point'],
+                                         total_amount=total_amount,
+                                         display_travel_date=display_travel_date,
+                                         contact_number=contact_number,
+                                         email=email,
+                                         payment_method=payment_method,
+                                         upi_id=upi_id,
+                                         netbanking_id=netbanking_id,
+                                         card_id=card_id)
+            else:
+                payment_reference_id = card_id
+                if not payment_reference_id:
+                    flash("Please enter your Card ID/Number.", "error")
+                    return render_template("payment.html", bus=bus, selected_seats=selected_seats,
+                                         boarding_point=session['boarding_point'],
+                                         dropping_point=session['dropping_point'],
+                                         total_amount=total_amount,
+                                         display_travel_date=display_travel_date,
+                                         contact_number=contact_number,
+                                         email=email,
+                                         payment_method=payment_method,
+                                         upi_id=upi_id,
+                                         netbanking_id=netbanking_id,
+                                         card_id=card_id)
             
             # Simulate payment success
             import time
@@ -1135,29 +1422,122 @@ def payment():
                 booking_code = "BUS" + str(random.randint(1000, 9999))
                 booking_travel_date = effective_travel_date_from_session(bus)
 
-                cursor.execute("""
-                INSERT INTO bookings(
-                     user_id, bus_id, seats, passenger_name, contact_number, email,
-                     boarding_point, dropping_point, total_amount, payment_method, travel_date, booking_id
-                )
-                VALUES(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                """, (
+                emergency_services = session.get('emergency_services', [])
+
+                # payment_reference_id is already validated above based on payment_method
+                # It may not be present in older DB schemas, so we add it conditionally.
+                has_emergency_column = False
+                has_payment_reference_column = False
+                has_entertainment_column = False
+                try:
+                    cursor.execute("""
+                        SELECT COLUMN_NAME
+                        FROM information_schema.COLUMNS
+                        WHERE TABLE_SCHEMA = DATABASE()
+                          AND TABLE_NAME = 'bookings'
+                          AND COLUMN_NAME IN ('emergency_services', 'payment_reference_id', 'entertainment_items')
+                    """)
+                    cols = {r.get("COLUMN_NAME") for r in (cursor.fetchall() or [])}
+                    has_emergency_column = "emergency_services" in cols
+                    has_payment_reference_column = "payment_reference_id" in cols
+                    has_entertainment_column = "entertainment_items" in cols
+                except Exception as schema_check_error:
+                    print(f"Could not check bookings optional columns: {schema_check_error}")
+
+                # Try to add missing optional columns when possible.
+                if not has_emergency_column:
+                    try:
+                        cursor.execute("ALTER TABLE bookings ADD COLUMN emergency_services JSON NULL")
+                        has_emergency_column = True
+                    except Exception as schema_alter_error:
+                        print(f"Could not add emergency_services column: {schema_alter_error}")
+                        has_emergency_column = False
+
+                if not has_payment_reference_column:
+                    try:
+                        cursor.execute("ALTER TABLE bookings ADD COLUMN payment_reference_id VARCHAR(100) NULL")
+                        has_payment_reference_column = True
+                    except Exception as schema_alter_error:
+                        print(f"Could not add payment_reference_id column: {schema_alter_error}")
+                        has_payment_reference_column = False
+
+                if not has_entertainment_column:
+                    try:
+                        cursor.execute("ALTER TABLE bookings ADD COLUMN entertainment_items JSON NULL")
+                        has_entertainment_column = True
+                    except Exception as schema_alter_error:
+                        print(f"Could not add entertainment_items column: {schema_alter_error}")
+                        has_entertainment_column = False
+
+                columns = [
+                    "user_id",
+                    "bus_id",
+                    "seats",
+                    "passenger_name",
+                    "contact_number",
+                    "email",
+                    "boarding_point",
+                    "dropping_point",
+                    "total_amount",
+                    "payment_method",
+                    "travel_date",
+                    "booking_id",
+                ]
+                values = [
                     session['user_id'],
                     bus_id,
                     json.dumps(seats_data),
                     session['user_name'],
                     contact_number,
-                    email,  # TEMP
+                    email,
                     session['boarding_point'],
                     session['dropping_point'],
                     total_amount,
                     payment_method,
                     booking_travel_date,
-                    booking_code          # ✅ BOOKING ID
-                ))
+                    booking_code,
+                ]
+
+                if has_emergency_column:
+                    columns.append("emergency_services")
+                    values.append(json.dumps(emergency_services))
+
+                if has_entertainment_column:
+                    columns.append("entertainment_items")
+                    values.append(json.dumps(session.get('entertainment_items', [])))
+
+                if has_payment_reference_column:
+                    columns.append("payment_reference_id")
+                    values.append(payment_reference_id)
+
+                placeholders = ", ".join(["%s"] * len(values))
+                cursor.execute(
+                    f"INSERT INTO bookings({', '.join(columns)}) VALUES({placeholders})",
+                    tuple(values),
+                )
                 
                 db.commit()
                 booking_id = cursor.lastrowid
+
+                booking_email_data = {
+                    'booking_id': booking_code,
+                    'passenger_name': session['user_name'],
+                    'source': bus['source'],
+                    'destination': bus['destination'],
+                    'travel_date': booking_travel_date,
+                    'departure_time': bus.get('departure_time'),
+                    'bus_name': bus['bus_name'],
+                    'bus_type': bus.get('bus_type', 'N/A'),
+                    'seats': json.dumps(seats_data),
+                    'seats_list': seats_data,
+                    'total_amount': total_amount,
+                    'emergency_services': emergency_services,
+                    'entertainment_items': session.get('entertainment_items', []),
+                    'payment_reference_id': payment_reference_id,
+                    'email': email
+                }
+                if not send_booking_confirmation_email(booking_email_data):
+                    print(f"Failed to send booking confirmation email: {getattr(send_email, 'last_error', 'Unknown mail error')}")
                 
                 # Only clear session after successful commit
                 session.pop('selected_seats', None)
@@ -1177,14 +1557,23 @@ def payment():
                                      boarding_point=session['boarding_point'],
                                      dropping_point=session['dropping_point'],
                                      total_amount=total_amount,
-                                     display_travel_date=display_travel_date)
+                                     display_travel_date=display_travel_date,
+                                     contact_number=contact_number,
+                                     email=email)
         
         # GET request - Show payment form
         return render_template("payment.html", bus=bus, selected_seats=selected_seats,
                              boarding_point=session['boarding_point'],
                              dropping_point=session['dropping_point'],
                              total_amount=total_amount,
-                             display_travel_date=display_travel_date)
+                             display_travel_date=display_travel_date,
+                             contact_number="",
+                             email="",
+                             emergency_services=session.get('emergency_services', []),
+                             payment_method="",
+                             upi_id="",
+                             netbanking_id="",
+                             card_id="")
     
     except mysql.connector.Error as db_error:
         print(f"Database error in payment route: {db_error}")
@@ -1234,6 +1623,68 @@ def booking_confirmation(booking_id):
     # Parse seats
     booking['seats_list'] = json.loads(booking['seats'])
 
+    # Parse emergency service requests (if any)
+    try:
+        booking['emergency_services'] = json.loads(booking.get('emergency_services') or '[]')
+    except Exception:
+        booking['emergency_services'] = []
+
+    try:
+        booking['entertainment_items'] = json.loads(booking.get('entertainment_items') or '[]')
+    except Exception:
+        booking['entertainment_items'] = []
+
+    booking['travel_date'] = ensure_date(booking.get('travel_date'))
+    booking['departure_time'] = ensure_time(booking.get('departure_time'))
+    booking['arrival_time'] = ensure_time(booking.get('arrival_time'))
+
+    return render_template("confirmation.html", booking=booking)
+    try:
+        subject = f"BusHub - Booking Confirmed - {booking['booking_id']}"
+        html_body = f"""
+        <html>
+        <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <div style="background: linear-gradient(135deg, #28a745 0%, #20c997 100%); color: white; padding: 20px; text-align: center; border-radius: 10px 10px 0 0;">
+                <h1>🎉 Booking Confirmed!</h1>
+                <p>Your bus ticket has been successfully booked</p>
+            </div>
+
+            <div style="background: white; padding: 20px; border: 1px solid #ddd; border-radius: 0 0 10px 10px;">
+                <h2 style="color: #333;">Booking Details</h2>
+                <p><strong>Booking ID:</strong> {booking['booking_id']}</p>
+                <p><strong>Passenger:</strong> {booking['passenger_name']}</p>
+                <p><strong>Route:</strong> {booking['source']} → {booking['destination']}</p>
+                <p><strong>Travel Date:</strong> {booking['travel_date'].strftime('%Y-%m-%d') if hasattr(booking['travel_date'], 'strftime') else (booking['travel_date'] or 'N/A')}</p>
+                <p><strong>Departure:</strong> {booking['departure_time'].strftime('%H:%M') if hasattr(booking['departure_time'], 'strftime') else (booking['departure_time'] or 'N/A')}</p>
+                <p><strong>Bus:</strong> {booking['bus_name']} ({booking['bus_type']})</p>
+                <p><strong>Seats:</strong> {', '.join([seat['number'] for seat in booking['seats_list']])}</p>
+                <p><strong>Total Amount:</strong> ₹{booking['total_amount']}</p>
+                <p><strong>Emergency Services Requested:</strong> {', '.join(booking.get('emergency_services', [])) if booking.get('emergency_services') else 'None'}</p>
+
+                <div style="background: #f8f9fa; padding: 15px; border-radius: 5px; margin: 20px 0;">
+                    <h3 style="color: #28a745; margin-top: 0;">Important Instructions:</h3>
+                    <ul>
+                        <li>Arrive at the boarding point 30 minutes before departure</li>
+                        <li>Carry a valid ID proof for verification</li>
+                        <li>Show this email or the e-ticket on your mobile</li>
+                        <li>For any queries, contact our support team</li>
+                    </ul>
+                </div>
+
+                <p style="color: #666; font-size: 12px;">
+                    Thank you for choosing BusHub! Safe travels.<br>
+                    This is an automated email. Please do not reply.
+                </p>
+            </div>
+        </body>
+        </html>
+        """
+
+        send_email(subject, [booking['email']], f"Booking confirmed for {booking['booking_id']}", html_body)
+    except Exception as e:
+        print(f"Failed to send booking confirmation email: {e}")
+        # Don't fail the booking if email fails
+
     return render_template("confirmation.html", booking=booking)
 
 @user_bp.route("/booking_history")
@@ -1256,8 +1707,21 @@ def booking_history():
 
     for booking in bookings:
         booking['seats_list'] = json.loads(booking['seats'])
+        try:
+            booking['emergency_services'] = json.loads(booking.get('emergency_services') or '[]')
+        except Exception:
+            booking['emergency_services'] = []
 
-    return render_template("booking_history.html", bookings=bookings)
+        try:
+            booking['entertainment_items'] = json.loads(booking.get('entertainment_items') or '[]')
+        except Exception:
+            booking['entertainment_items'] = []
+
+        booking['travel_date'] = ensure_date(booking.get('travel_date'))
+        booking['departure_time'] = ensure_time(booking.get('departure_time'))
+        booking['arrival_time'] = ensure_time(booking.get('arrival_time'))
+
+    return render_template("booking_history.html", bookings=bookings, current_date=datetime.now().date())
 
 @user_bp.route("/refund_info/<int:booking_id>")
 def refund_info(booking_id):
@@ -1321,7 +1785,16 @@ def cancel_booking(booking_id):
 
     # Get booking details with bus info (bus_travel_date avoids overwriting b.travel_date from b.*)
     cursor.execute("""
-        SELECT b.*, buses.departure_time, buses.travel_date AS bus_travel_date
+        SELECT
+            b.*,
+            buses.bus_name,
+            buses.source,
+            buses.destination,
+            buses.bus_type,
+            buses.operator,
+            buses.departure_time,
+            buses.arrival_time,
+            buses.travel_date AS bus_travel_date
         FROM bookings b
         JOIN buses ON b.bus_id = buses.id
         WHERE b.id = %s AND b.user_id = %s AND b.status = 'confirmed'
@@ -1349,9 +1822,12 @@ def cancel_booking(booking_id):
     time_diff = travel_datetime - current_time
     total = float(booking['total_amount'])
     if time_diff > timedelta(hours=24):
-        refund_amount = total * 0.9  # 90% refund
+        refund_percentage = 90
     else:
-        refund_amount = total * 0.5  # 50% refund
+        refund_percentage = 50
+
+    refund_amount = total * (refund_percentage / 100)
+    refund_policy = "90% refund if cancelled before 24 hours, 50% refund if cancelled 2-24 hours before departure."
 
     # Update booking status and add refund info
     cursor.execute("""
@@ -1363,7 +1839,92 @@ def cancel_booking(booking_id):
     db.commit()
     flash(f"Booking cancelled successfully. Refund amount: ₹{refund_amount:.2f} will be processed within 5-7 business days.", "success")
 
-    return redirect(url_for("user.booking_history"))
+    # Send cancellation email with structured email builder
+    try:
+        send_cancellation_confirmation_email(
+            booking,
+            refund_amount,
+            refund_percentage=refund_percentage,
+            refund_policy=refund_policy,
+        )
+    except Exception as e:
+        print(f"Failed to send cancellation email: {e}")
+        # Don't fail the cancellation if email fails
+
+    # Get updated booking details for the cancellation page
+    cursor.execute("""
+        SELECT b.*, buses.bus_name, buses.source, buses.destination,
+               buses.bus_type, buses.operator, buses.departure_time, buses.arrival_time, buses.price
+        FROM bookings b
+        JOIN buses ON b.bus_id = buses.id
+        WHERE b.id = %s
+    """, (booking_id,))
+
+    updated_booking = cursor.fetchone()
+    cursor.close()
+    db.close()
+
+    if updated_booking:
+        # Parse and normalize values
+        updated_booking['seats_list'] = json.loads(updated_booking['seats'])
+        updated_booking['seat_count'] = len(updated_booking['seats_list'])
+        try:
+            updated_booking['emergency_services'] = json.loads(updated_booking.get('emergency_services') or '[]')
+        except Exception:
+            updated_booking['emergency_services'] = []
+
+        try:
+            updated_booking['entertainment_items'] = json.loads(updated_booking.get('entertainment_items') or '[]')
+        except Exception:
+            updated_booking['entertainment_items'] = []
+
+        updated_booking['travel_date'] = ensure_date(updated_booking.get('travel_date'))
+        updated_booking['departure_time'] = ensure_time(updated_booking.get('departure_time'))
+        updated_booking['arrival_time'] = ensure_time(updated_booking.get('arrival_time'))
+        return render_template("cancellation_details.html", booking=updated_booking)
+    else:
+        return redirect(url_for("user.booking_history"))
+
+@user_bp.route("/cancellation_details/<int:booking_id>")
+def cancellation_details(booking_id):
+    """Show cancellation details and refund information"""
+    db = get_db_connection()
+    cursor = db.cursor(dictionary=True)
+
+    cursor.execute("""
+        SELECT b.*, buses.bus_name, buses.source, buses.destination,
+               buses.bus_type, buses.operator, buses.departure_time, buses.arrival_time, buses.price
+        FROM bookings b
+        JOIN buses ON b.bus_id = buses.id
+        WHERE b.id = %s AND b.user_id = %s AND b.status = 'cancelled'
+    """, (booking_id, session['user_id']))
+
+    booking = cursor.fetchone()
+    cursor.close()
+    db.close()
+
+    if not booking:
+        flash("Cancellation details not found", "error")
+        return redirect(url_for("user.booking_history"))
+
+    # Parse and normalize values
+    booking['seats_list'] = json.loads(booking['seats'])
+    booking['seat_count'] = len(booking['seats_list'])
+    try:
+        booking['emergency_services'] = json.loads(booking.get('emergency_services') or '[]')
+    except Exception:
+        booking['emergency_services'] = []
+
+    try:
+        booking['entertainment_items'] = json.loads(booking.get('entertainment_items') or '[]')
+    except Exception:
+        booking['entertainment_items'] = []
+
+    booking['travel_date'] = ensure_date(booking.get('travel_date'))
+    booking['departure_time'] = ensure_time(booking.get('departure_time'))
+    booking['arrival_time'] = ensure_time(booking.get('arrival_time'))
+
+    return render_template("cancellation_details.html", booking=booking)
 
 @user_bp.route("/view_ticket/<int:booking_id>")
 def view_ticket(booking_id):
@@ -1385,9 +1946,22 @@ def view_ticket(booking_id):
         flash("Booking not found", "error")
         return redirect(url_for("user.booking_history"))
 
-    # Parse seats
+    # Parse and normalize values
     booking['seats_list'] = json.loads(booking['seats'])
     booking['seat_count'] = len(booking['seats_list'])
+    try:
+        booking['emergency_services'] = json.loads(booking.get('emergency_services') or '[]')
+    except Exception:
+        booking['emergency_services'] = []
+
+    try:
+        booking['entertainment_items'] = json.loads(booking.get('entertainment_items') or '[]')
+    except Exception:
+        booking['entertainment_items'] = []
+
+    booking['travel_date'] = ensure_date(booking.get('travel_date'))
+    booking['departure_time'] = ensure_time(booking.get('departure_time'))
+    booking['arrival_time'] = ensure_time(booking.get('arrival_time'))
 
     return render_template("ticket.html", booking=booking)
 
@@ -1418,6 +1992,36 @@ def download_ticket(booking_id):
     pdf_buffer.seek(0)
     return send_file(pdf_buffer, as_attachment=True, download_name=f"ticket_{booking_id}.pdf", mimetype='application/pdf')
 
+@app.route("/verify_ticket/<int:booking_id>")
+def verify_ticket(booking_id):
+    """Public route to verify ticket by scanning QR code"""
+    db = get_db_connection()
+    cursor = db.cursor(dictionary=True)
+
+    cursor.execute("""
+        SELECT b.*, buses.bus_name, buses.source, buses.destination,
+               buses.bus_type, buses.operator, buses.departure_time, buses.arrival_time, buses.price
+        FROM bookings b
+        JOIN buses ON b.bus_id = buses.id
+        WHERE b.id = %s
+    """, (booking_id,))
+
+    booking = cursor.fetchone()
+    cursor.close()
+    db.close()
+
+    if not booking:
+        return render_template("404.html"), 404
+
+    # Parse and normalize values
+    booking['seats_list'] = json.loads(booking['seats'])
+    booking['seat_count'] = len(booking['seats_list'])
+    booking['travel_date'] = ensure_date(booking.get('travel_date'))
+    booking['departure_time'] = ensure_time(booking.get('departure_time'))
+    booking['arrival_time'] = ensure_time(booking.get('arrival_time'))
+
+    return render_template("verify_ticket.html", booking=booking)
+
 @user_bp.route("/api/bus_routes/<int:bus_id>")
 def get_bus_routes_api(bus_id):
     """API endpoint to fetch bus routes"""
@@ -1447,6 +2051,191 @@ def get_bus_routes_api(bus_id):
         'destination': bus['destination'],
         'routes': routes if routes else []
     })
+
+@user_bp.route("/feedback/<int:booking_id>", methods=["GET", "POST"])
+def feedback(booking_id):
+    """Passenger feedback form after travel"""
+    db = get_db_connection()
+    cursor = db.cursor(dictionary=True)
+
+    # Get booking details
+    cursor.execute("""
+        SELECT b.*, buses.bus_name, buses.source, buses.destination,
+               buses.bus_type, buses.operator
+        FROM bookings b
+        JOIN buses ON b.bus_id = buses.id
+        WHERE b.id = %s AND b.user_id = %s AND b.status = 'confirmed'
+    """, (booking_id, session['user_id']))
+
+    booking = cursor.fetchone()
+
+    if not booking:
+        flash("Booking not found", "error")
+        return redirect(url_for("user.booking_history"))
+
+    # Check if travel date has passed (allow feedback only after travel).
+    # When coming from the booking confirmation page, we allow early feedback too.
+    allow_early = request.method == "POST" and request.form.get("allow_early") in ("1", "true", "True", "yes", "YES")
+    if booking['travel_date'] and booking['travel_date'] > datetime.now().date() and not allow_early:
+        flash("Feedback can only be submitted after the travel date", "warning")
+        return redirect(url_for("user.booking_history"))
+
+    if request.method == "POST":
+        # Get feedback data
+        # `rating` is optional in some forms; fall back to journey/overall rating.
+        overall_experience = request.form.get('overall_experience') or request.form.get('journey_rating') or '5'
+        rating = request.form.get('rating') or overall_experience
+        comfort = request.form.get('comfort', '5')
+        cleanliness = request.form.get('cleanliness', '5')
+        punctuality = request.form.get('punctuality', '5')
+        staff_behavior = request.form.get('staff_behavior', '5')
+        facilities_rating = request.form.get('facilities_rating', '5')
+        comments = request.form.get('comments', '')
+
+        # Save feedback to database (you might want to create a feedback table)
+        # For now, just send an email with feedback
+        try:
+            subject = f"BusHub - Passenger Feedback - {booking['booking_id']}"
+            html_body = f"""
+            <html>
+            <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                <div style="background: linear-gradient(135deg, #17a2b8 0%, #138496 100%); color: white; padding: 20px; text-align: center; border-radius: 10px 10px 0 0;">
+                    <h1>📝 Passenger Feedback</h1>
+                    <p>Feedback received for booking {booking['booking_id']}</p>
+                </div>
+
+                <div style="background: white; padding: 20px; border: 1px solid #ddd; border-radius: 0 0 10px 10px;">
+                    <h2 style="color: #333;">Booking Details</h2>
+                    <p><strong>Booking ID:</strong> {booking['booking_id']}</p>
+                    <p><strong>Passenger:</strong> {booking['passenger_name']}</p>
+                    <p><strong>Route:</strong> {booking['source']} → {booking['destination']}</p>
+                    <p><strong>Bus:</strong> {booking['bus_name']} ({booking['bus_type']})</p>
+
+                    <h3 style="color: #17a2b8;">Feedback Ratings</h3>
+                    <div style="background: #f8f9fa; padding: 15px; border-radius: 5px;">
+                        <p><strong>Overall Rating:</strong> {rating}/5 ⭐</p>
+                        <p><strong>Comfort:</strong> {comfort}/5</p>
+                        <p><strong>Cleanliness:</strong> {cleanliness}/5</p>
+                        <p><strong>Punctuality:</strong> {punctuality}/5</p>
+                        <p><strong>Staff Behavior:</strong> {staff_behavior}/5</p>
+                        <p><strong>Overall Experience:</strong> {overall_experience}/5</p>
+                        <p><strong>Bus Facilities:</strong> {facilities_rating}/5</p>
+                    </div>"""
+
+            if comments:
+                html_body += f"""
+                    <div style="background: #e9ecef; padding: 15px; border-radius: 5px; margin: 15px 0;">
+                        <h4 style="margin-top: 0;">Additional Comments:</h4>
+                        <p style="font-style: italic;">{comments}</p>
+                    </div>"""
+
+            html_body += f"""
+                    <p style="color: #666; font-size: 12px;">
+                        Feedback submitted on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}<br>
+                        This feedback helps us improve our services.
+                    </p>
+                </div>
+            </body>
+            </html>
+            """
+
+            # Send feedback email to admin/support
+            send_email(subject, [app.config['MAIL_USERNAME']], f"New feedback received for booking {booking['booking_id']}", html_body)
+
+            # Update bus average rating in the buses table (bus feedback)
+            try:
+                cursor.execute("ALTER TABLE buses ADD COLUMN IF NOT EXISTS rating_count INT DEFAULT 0")
+            except Exception:
+                pass
+
+            cursor.execute("SELECT rating, rating_count FROM buses WHERE id = %s", (booking['bus_id'],))
+            bus_info = cursor.fetchone()
+            if bus_info:
+                current_rating = float(bus_info.get('rating') or 0)
+                current_count = int(bus_info.get('rating_count') or 0)
+                new_count = current_count + 1
+                new_rating = round(((current_rating * current_count) + float(rating)) / new_count, 2)
+                cursor.execute("UPDATE buses SET rating = %s, rating_count = %s WHERE id = %s", (new_rating, new_count, booking['bus_id']))
+                db.commit()
+
+            flash("Thank you for your feedback! Your input helps us improve our services.", "success")
+            return redirect(url_for("user.booking_history"))
+
+        except Exception as e:
+            print(f"Failed to send feedback email: {e}")
+            flash("Feedback submitted successfully!", "success")
+            return redirect(url_for("user.booking_history"))
+
+    # Parse seats for display
+    booking['seats_list'] = json.loads(booking['seats'])
+
+    return render_template("feedback.html", booking=booking)
+
+@app.route("/emergency")
+def emergency():
+    """Emergency contact page"""
+    return render_template("emergency.html")
+
+@user_bp.route("/rate-site", methods=["GET", "POST"])
+def rate_site():
+    """Allow users to rate the website"""
+    if "user_id" not in session:
+        flash("Please login to rate our site", "error")
+        return redirect(url_for("auth.login"))
+
+    db = get_db_connection()
+    cursor = db.cursor(dictionary=True)
+
+    if request.method == "POST":
+        rating = request.form.get("rating")
+        review = request.form.get("review", "").strip()
+
+        if not rating or not rating.isdigit() or not (1 <= int(rating) <= 5):
+            flash("Please select a valid rating (1-5 stars)", "error")
+            return redirect(url_for("user.rate_site"))
+
+        try:
+            # Check if user already rated
+            cursor.execute("SELECT id FROM site_ratings WHERE user_id = %s", (session["user_id"],))
+            existing = cursor.fetchone()
+
+            if existing:
+                # Update existing rating
+                cursor.execute("""
+                    UPDATE site_ratings 
+                    SET rating = %s, review = %s, created_at = CURRENT_TIMESTAMP 
+                    WHERE user_id = %s
+                """, (int(rating), review, session["user_id"]))
+                flash("Your rating has been updated! Thank you for your feedback.", "success")
+            else:
+                # Insert new rating
+                cursor.execute("""
+                    INSERT INTO site_ratings (user_id, rating, review) 
+                    VALUES (%s, %s, %s)
+                """, (session["user_id"], int(rating), review))
+                flash("Thank you for rating our site! Your feedback helps us improve.", "success")
+
+            db.commit()
+
+        except Exception as e:
+            db.rollback()
+            print(f"Error saving site rating: {e}")
+            flash("An error occurred while saving your rating. Please try again.", "error")
+            return redirect(url_for("user.rate_site"))
+
+        return redirect(url_for("user.search"))
+
+    # Get current user's rating if exists
+    cursor.execute("SELECT rating, review FROM site_ratings WHERE user_id = %s", (session["user_id"],))
+    user_rating = cursor.fetchone()
+
+    # Get overall site statistics
+    cursor.execute("SELECT AVG(rating) as avg_rating, COUNT(*) as total_ratings FROM site_ratings")
+    stats = cursor.fetchone()
+
+    cursor.close()
+
+    return render_template("rate_site.html", user_rating=user_rating, stats=stats)
 
 # ================= ADMIN BLUEPRINT =================
 
