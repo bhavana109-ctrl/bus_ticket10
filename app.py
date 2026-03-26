@@ -214,6 +214,43 @@ def ensure_bus_schema():
     if not cursor.fetchone():
         cursor.execute("ALTER TABLE bookings ADD COLUMN cancelled_at DATETIME NULL")
 
+    # Offer data for bookings
+    cursor.execute("SHOW COLUMNS FROM bookings LIKE 'seasonal_offer'")
+    if not cursor.fetchone():
+        cursor.execute("ALTER TABLE bookings ADD COLUMN seasonal_offer TINYINT(1) DEFAULT 0")
+
+    cursor.execute("SHOW COLUMNS FROM bookings LIKE 'first_travel_offer'")
+    if not cursor.fetchone():
+        cursor.execute("ALTER TABLE bookings ADD COLUMN first_travel_offer TINYINT(1) DEFAULT 0")
+
+    db.commit()
+    cursor.close()
+    db.close()
+
+
+def ensure_bus_locations_table():
+    """Ensure bus_locations table exists for tracking bus locations"""
+    db = get_db_connection()
+    cursor = db.cursor()
+
+    # Create bus_locations table if it doesn't exist
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS bus_locations (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            bus_id INT NOT NULL,
+            latitude DECIMAL(10,8) NULL,
+            longitude DECIMAL(11,8) NULL,
+            current_stop VARCHAR(100) NULL,
+            next_stop VARCHAR(100) NULL,
+            estimated_arrival TIME NULL,
+            status ENUM('not_started', 'in_transit', 'arrived', 'delayed') DEFAULT 'not_started',
+            last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            FOREIGN KEY (bus_id) REFERENCES buses(id) ON DELETE CASCADE,
+            INDEX idx_bus_id (bus_id),
+            INDEX idx_last_updated (last_updated)
+        )
+    """)
+
     db.commit()
     cursor.close()
     db.close()
@@ -362,6 +399,7 @@ def initialize_db():
     try:
         # Always keep schema additions in sync (prevents crashes on older DBs).
         ensure_bus_schema()
+        ensure_bus_locations_table()
         if db_initialized:
             return
 
@@ -419,11 +457,17 @@ def send_booking_confirmation_email(booking):
     seats = booking.get("seats_list") or json.loads(booking["seats"])
     emergency_services = booking.get("emergency_services") or []
     entertainment_items = booking.get("entertainment_items") or []
+    offers_applied = booking.get("offers_applied") or []
     if isinstance(entertainment_items, str):
         try:
             entertainment_items = json.loads(entertainment_items)
         except Exception:
             entertainment_items = [entertainment_items] if entertainment_items else []
+    if isinstance(offers_applied, str):
+        try:
+            offers_applied = json.loads(offers_applied)
+        except Exception:
+            offers_applied = [offers_applied] if offers_applied else []
 
     travel_date = ensure_date(booking.get("travel_date"))
     subject = f"BusHub - Booking Confirmed - {booking['booking_id']}"
@@ -443,6 +487,9 @@ def send_booking_confirmation_email(booking):
             <p><strong>Departure:</strong> {format_time_value(ensure_time(booking.get('departure_time')))}</p>
             <p><strong>Bus:</strong> {booking['bus_name']} ({booking['bus_type']})</p>
             <p><strong>Seats:</strong> {', '.join([seat['number'] for seat in seats])}</p>
+            <p><strong>Base Fare:</strong> Rs. {float(booking.get('base_total_amount', booking['total_amount'])):.2f}</p>
+            <p><strong>Total Discount:</strong> Rs. {float(booking.get('total_discount', 0) or 0):.2f}</p>
+            <p><strong>Offers Applied:</strong> {', '.join(offers_applied) if offers_applied else 'None'}</p>
             <p><strong>Total Amount:</strong> Rs. {float(booking['total_amount']):.2f}</p>
             <p><strong>Emergency Services Requested:</strong> {', '.join(emergency_services) if emergency_services else 'None'}</p>
             <p><strong>Entertainment Items Requested:</strong> {', '.join(entertainment_items) if entertainment_items else 'None'}</p>
@@ -1192,240 +1239,185 @@ def select_seats(bus_id):
 @user_bp.route("/payment", methods=["GET", "POST"])
 def payment():
     """Payment page with proper error handling"""
-    # Validate session data on GET and POST
     if 'selected_seats' not in session:
         flash("Invalid session. Please search and select seats again.", "error")
         return redirect(url_for("user.search"))
-    
-    # Validate all required session variables
+
     required_session_keys = ['bus_id', 'user_id', 'user_name', 'boarding_point', 'dropping_point', 'selected_seats']
     for key in required_session_keys:
         if key not in session:
             flash(f"Session error: Missing {key}. Please start over.", "error")
             return redirect(url_for("user.search"))
-    
+
     db = None
     cursor = None
-    
+
     try:
         db = get_db_connection()
         cursor = db.cursor(dictionary=True)
-
-        cursor.execute("SELECT DATABASE()")
-        print("CURRENT DB:", cursor.fetchone())
-
-        
         bus_id = session['bus_id']
-        
-        # Get bus details
+
         cursor.execute("SELECT * FROM buses WHERE id = %s", (bus_id,))
         bus = cursor.fetchone()
-        
-        # Validate bus exists
         if not bus:
             flash("Bus not found. Please search again.", "error")
             return redirect(url_for("user.search"))
-        
-        # Get seat details for price calculation
+
         selected_seats = session['selected_seats']
-        
         if not selected_seats:
             flash("No seats selected. Please select seats again.", "error")
             return redirect(url_for("user.search"))
-        
+
         cursor.execute("""
             SELECT seat_number, price_modifier FROM seat_details
             WHERE bus_id = %s AND seat_number IN ({})
         """.format(','.join(['%s'] * len(selected_seats))), [bus_id] + selected_seats)
-        
         seat_details = cursor.fetchall()
-        
-        # Validate we got seat details for all selected seats
+
         if len(seat_details) != len(selected_seats):
             flash("Invalid seats selected. Please select seats again.", "error")
             return redirect(url_for("user.select_seats", bus_id=bus_id))
-        
-        # Check if any selected seats are already booked
+
         cursor.execute("""
             SELECT seats FROM bookings
             WHERE bus_id = %s AND status = 'confirmed'
         """, (bus_id,))
-        
-        bookings = cursor.fetchall()
         booked_seats = set()
-        for booking in bookings:
+        for booking in cursor.fetchall():
             try:
-                seats_list = json.loads(booking['seats'])
-                for seat in seats_list:
+                for seat in json.loads(booking['seats']):
                     booked_seats.add(seat['number'] if isinstance(seat, dict) else seat)
-            except (json.JSONDecodeError, KeyError, TypeError):
+            except Exception:
                 pass
-        
-        # Check for conflicts
-        selected_seats_set = set(selected_seats)
-        conflict_seats = selected_seats_set & booked_seats
+
+        conflict_seats = set(selected_seats) & booked_seats
         if conflict_seats:
-            flash(f"Sorry, seat{'s' if len(conflict_seats) > 1 else ''} {', '.join(sorted(conflict_seats))} {'are' if len(conflict_seats) > 1 else 'is'} no longer available. Please select different seats.", "error")
+            flash(
+                f"Sorry, seat{'s' if len(conflict_seats) > 1 else ''} {', '.join(sorted(conflict_seats))} "
+                f"{'are' if len(conflict_seats) > 1 else 'is'} no longer available. Please select different seats.",
+                "error"
+            )
             return redirect(url_for("user.select_seats", bus_id=bus_id))
-        
-        # Calculate total amount
-        total_amount = 0
-        for seat in seat_details:
-            total_amount += bus['price'] * seat['price_modifier']
-        
-        # Validate total amount is valid
-        if total_amount <= 0:
+
+        base_total_amount = sum(float(bus['price']) * float(seat['price_modifier']) for seat in seat_details)
+        if base_total_amount <= 0:
             flash("Invalid booking amount. Please try again.", "error")
             return redirect(url_for("user.search"))
 
         display_travel_date = effective_travel_date_from_session(bus)
-        
+        travel_date_obj = ensure_date(display_travel_date) or ensure_date(bus.get('travel_date'))
+
+        cursor.execute("SELECT COUNT(*) AS cnt FROM bookings WHERE user_id = %s", (session['user_id'],))
+        user_booking_count = int((cursor.fetchone() or {}).get('cnt') or 0)
+        first_travel_offer_eligible = (user_booking_count == 0)
+
+        entertainment_items = session.get('entertainment_items', []) or []
+        has_books_item = any('book' in str(item).lower() for item in entertainment_items)
+        seasonal_months = {4, 5, 6, 11, 12, 1}
+        seasonal_books_offer_eligible = bool(
+            has_books_item and travel_date_obj and getattr(travel_date_obj, 'month', None) in seasonal_months
+        )
+
+        selected_first_offer = request.form.get("apply_first_travel_offer") == "1" if request.method == "POST" else False
+        selected_seasonal_books_offer = request.form.get("apply_seasonal_books_offer") == "1" if request.method == "POST" else False
+
+        if selected_first_offer and not first_travel_offer_eligible:
+            selected_first_offer = False
+            flash("First travel offer is available only on your first booking.", "warning")
+
+        if selected_seasonal_books_offer and not seasonal_books_offer_eligible:
+            selected_seasonal_books_offer = False
+            flash("Seasonal books offer is available only when books are selected during seasonal months.", "warning")
+
+        first_travel_discount = round(base_total_amount * 0.10, 2) if selected_first_offer else 0.0
+        seasonal_books_discount = round(base_total_amount * 0.15, 2) if selected_seasonal_books_offer else 0.0
+        total_discount = round(first_travel_discount + seasonal_books_discount, 2)
+        total_amount = round(max(base_total_amount - total_discount, 0.0), 2)
+
+        def render_payment_form(contact_number="", email="", payment_method="", upi_id="", netbanking_id="", card_id=""):
+            return render_template(
+                "payment.html",
+                bus=bus,
+                selected_seats=selected_seats,
+                boarding_point=session['boarding_point'],
+                dropping_point=session['dropping_point'],
+                display_travel_date=display_travel_date,
+                contact_number=contact_number,
+                email=email,
+                payment_method=payment_method,
+                upi_id=upi_id,
+                netbanking_id=netbanking_id,
+                card_id=card_id,
+                emergency_services=session.get('emergency_services', []),
+                entertainment_items=entertainment_items,
+                base_total_amount=base_total_amount,
+                first_travel_offer_eligible=first_travel_offer_eligible,
+                seasonal_books_offer_eligible=seasonal_books_offer_eligible,
+                apply_first_travel_offer=selected_first_offer,
+                apply_seasonal_books_offer=selected_seasonal_books_offer,
+                first_travel_discount=first_travel_discount,
+                seasonal_books_discount=seasonal_books_discount,
+                total_discount=total_discount,
+                total_amount=total_amount,
+            )
+
         if request.method == "POST":
-            print("POST REQUEST RECEIVED") 
-            print(session)  
-            # ✅ ADD HERE
             contact_number = (request.form.get("contact_number") or "").strip()
             email = (request.form.get("email") or "").strip().lower()
-
-            # Validate payment method
-            payment_method = request.form.get("payment_method", "").strip()
-            # Validate payment method
-            payment_method = request.form.get("payment_method", "").strip()
-
-            # Payment reference values (optional until validated below)
+            payment_method = (request.form.get("payment_method") or "").strip()
             upi_id = (request.form.get("upi_id") or "").strip()
             netbanking_id = (request.form.get("netbanking_id") or "").strip()
             card_id = (request.form.get("card_id") or "").strip()
 
+            if total_amount <= 0:
+                flash("Invalid final booking amount. Please review offers.", "error")
+                return render_payment_form(contact_number, email, payment_method, upi_id, netbanking_id, card_id)
+
             valid_payment_methods = ["UPI", "Credit/Debit Card", "Net Banking"]
-            
-            if not payment_method:
-                flash("Please select a payment method.", "error")
-                return render_template("payment.html", bus=bus, selected_seats=selected_seats,
-                                     boarding_point=session['boarding_point'],
-                                     dropping_point=session['dropping_point'],
-                                     total_amount=total_amount,
-                                     display_travel_date=display_travel_date,
-                                     contact_number=contact_number,
-                                     email=email,
-                                     payment_method=payment_method,
-                                     upi_id=upi_id,
-                                     netbanking_id=netbanking_id,
-                                     card_id=card_id)
-            
             if payment_method not in valid_payment_methods:
-                flash("Invalid payment method selected.", "error")
-                return render_template("payment.html", bus=bus, selected_seats=selected_seats,
-                                     boarding_point=session['boarding_point'],
-                                     dropping_point=session['dropping_point'],
-                                     total_amount=total_amount,
-                                     display_travel_date=display_travel_date,
-                                     contact_number=contact_number,
-                                     email=email,
-                                     payment_method=payment_method,
-                                     upi_id=upi_id,
-                                     netbanking_id=netbanking_id,
-                                     card_id=card_id)
+                flash("Please select a valid payment method.", "error")
+                return render_payment_form(contact_number, email, payment_method, upi_id, netbanking_id, card_id)
 
             if not re.fullmatch(r"\d{10}", contact_number):
                 flash("Please enter a valid 10-digit contact number.", "error")
-                return render_template("payment.html", bus=bus, selected_seats=selected_seats,
-                                     boarding_point=session['boarding_point'],
-                                     dropping_point=session['dropping_point'],
-                                     total_amount=total_amount,
-                                     display_travel_date=display_travel_date,
-                                     contact_number=contact_number,
-                                     email=email,
-                                     payment_method=payment_method,
-                                     upi_id=upi_id,
-                                     netbanking_id=netbanking_id,
-                                     card_id=card_id)
+                return render_payment_form(contact_number, email, payment_method, upi_id, netbanking_id, card_id)
 
             if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email):
                 flash("Please enter a valid passenger email address.", "error")
-                return render_template("payment.html", bus=bus, selected_seats=selected_seats,
-                                     boarding_point=session['boarding_point'],
-                                     dropping_point=session['dropping_point'],
-                                     total_amount=total_amount,
-                                     display_travel_date=display_travel_date,
-                                     contact_number=contact_number,
-                                     email=email,
-                                     payment_method=payment_method,
-                                     upi_id=upi_id,
-                                     netbanking_id=netbanking_id,
-                                     card_id=card_id)
+                return render_payment_form(contact_number, email, payment_method, upi_id, netbanking_id, card_id)
 
-            # Validate the method-specific payment reference ID
             payment_reference_id = ""
             if payment_method == "UPI":
                 payment_reference_id = upi_id
                 if not payment_reference_id:
                     flash("Please enter your UPI ID.", "error")
-                    return render_template("payment.html", bus=bus, selected_seats=selected_seats,
-                                         boarding_point=session['boarding_point'],
-                                         dropping_point=session['dropping_point'],
-                                         total_amount=total_amount,
-                                         display_travel_date=display_travel_date,
-                                         contact_number=contact_number,
-                                         email=email,
-                                         payment_method=payment_method,
-                                         upi_id=upi_id,
-                                         netbanking_id=netbanking_id,
-                                         card_id=card_id)
+                    return render_payment_form(contact_number, email, payment_method, upi_id, netbanking_id, card_id)
             elif payment_method == "Net Banking":
                 payment_reference_id = netbanking_id
                 if not payment_reference_id:
                     flash("Please enter your Net Banking ID.", "error")
-                    return render_template("payment.html", bus=bus, selected_seats=selected_seats,
-                                         boarding_point=session['boarding_point'],
-                                         dropping_point=session['dropping_point'],
-                                         total_amount=total_amount,
-                                         display_travel_date=display_travel_date,
-                                         contact_number=contact_number,
-                                         email=email,
-                                         payment_method=payment_method,
-                                         upi_id=upi_id,
-                                         netbanking_id=netbanking_id,
-                                         card_id=card_id)
+                    return render_payment_form(contact_number, email, payment_method, upi_id, netbanking_id, card_id)
             else:
                 payment_reference_id = card_id
                 if not payment_reference_id:
                     flash("Please enter your Card ID/Number.", "error")
-                    return render_template("payment.html", bus=bus, selected_seats=selected_seats,
-                                         boarding_point=session['boarding_point'],
-                                         dropping_point=session['dropping_point'],
-                                         total_amount=total_amount,
-                                         display_travel_date=display_travel_date,
-                                         contact_number=contact_number,
-                                         email=email,
-                                         payment_method=payment_method,
-                                         upi_id=upi_id,
-                                         netbanking_id=netbanking_id,
-                                         card_id=card_id)
-            
-            # Simulate payment success
+                    return render_payment_form(contact_number, email, payment_method, upi_id, netbanking_id, card_id)
+
             import time
-            time.sleep(1)  # Simulate processing
-            
-            # Create booking
+            time.sleep(1)
+
             seats_data = []
             for seat in seat_details:
                 seats_data.append({
                     'number': seat['seat_number'],
-                    # `bus['price']` / `seat['price_modifier']` are DECIMAL values from MySQL.
-                    # Convert to float so `json.dumps()` can serialize them.
                     'price': float(bus['price']) * float(seat['price_modifier'])
                 })
-            
+
             try:
-                # Generate booking ID
                 booking_code = "BUS" + str(random.randint(1000, 9999))
                 booking_travel_date = effective_travel_date_from_session(bus)
-
                 emergency_services = session.get('emergency_services', [])
 
-                # payment_reference_id is already validated above based on payment_method
-                # It may not be present in older DB schemas, so we add it conditionally.
                 has_emergency_column = False
                 has_payment_reference_column = False
                 has_entertainment_column = False
@@ -1444,14 +1436,12 @@ def payment():
                 except Exception as schema_check_error:
                     print(f"Could not check bookings optional columns: {schema_check_error}")
 
-                # Try to add missing optional columns when possible.
                 if not has_emergency_column:
                     try:
                         cursor.execute("ALTER TABLE bookings ADD COLUMN emergency_services JSON NULL")
                         has_emergency_column = True
                     except Exception as schema_alter_error:
                         print(f"Could not add emergency_services column: {schema_alter_error}")
-                        has_emergency_column = False
 
                 if not has_payment_reference_column:
                     try:
@@ -1459,7 +1449,6 @@ def payment():
                         has_payment_reference_column = True
                     except Exception as schema_alter_error:
                         print(f"Could not add payment_reference_id column: {schema_alter_error}")
-                        has_payment_reference_column = False
 
                 if not has_entertainment_column:
                     try:
@@ -1467,57 +1456,36 @@ def payment():
                         has_entertainment_column = True
                     except Exception as schema_alter_error:
                         print(f"Could not add entertainment_items column: {schema_alter_error}")
-                        has_entertainment_column = False
 
                 columns = [
-                    "user_id",
-                    "bus_id",
-                    "seats",
-                    "passenger_name",
-                    "contact_number",
-                    "email",
-                    "boarding_point",
-                    "dropping_point",
-                    "total_amount",
-                    "payment_method",
-                    "travel_date",
-                    "booking_id",
+                    "user_id", "bus_id", "seats", "passenger_name", "contact_number", "email",
+                    "boarding_point", "dropping_point", "total_amount", "payment_method", "travel_date", "booking_id",
                 ]
                 values = [
-                    session['user_id'],
-                    bus_id,
-                    json.dumps(seats_data),
-                    session['user_name'],
-                    contact_number,
-                    email,
-                    session['boarding_point'],
-                    session['dropping_point'],
-                    total_amount,
-                    payment_method,
-                    booking_travel_date,
-                    booking_code,
+                    session['user_id'], bus_id, json.dumps(seats_data), session['user_name'], contact_number, email,
+                    session['boarding_point'], session['dropping_point'], total_amount, payment_method, booking_travel_date, booking_code,
                 ]
 
                 if has_emergency_column:
                     columns.append("emergency_services")
                     values.append(json.dumps(emergency_services))
-
                 if has_entertainment_column:
                     columns.append("entertainment_items")
                     values.append(json.dumps(session.get('entertainment_items', [])))
-
                 if has_payment_reference_column:
                     columns.append("payment_reference_id")
                     values.append(payment_reference_id)
 
                 placeholders = ", ".join(["%s"] * len(values))
-                cursor.execute(
-                    f"INSERT INTO bookings({', '.join(columns)}) VALUES({placeholders})",
-                    tuple(values),
-                )
-                
+                cursor.execute(f"INSERT INTO bookings({', '.join(columns)}) VALUES({placeholders})", tuple(values))
                 db.commit()
                 booking_id = cursor.lastrowid
+
+                offers_applied = []
+                if selected_first_offer:
+                    offers_applied.append("First Travel Offer (10% OFF)")
+                if selected_seasonal_books_offer:
+                    offers_applied.append("Seasonal Books Offer (15% OFF)")
 
                 booking_email_data = {
                     'booking_id': booking_code,
@@ -1531,6 +1499,9 @@ def payment():
                     'seats': json.dumps(seats_data),
                     'seats_list': seats_data,
                     'total_amount': total_amount,
+                    'base_total_amount': base_total_amount,
+                    'total_discount': total_discount,
+                    'offers_applied': offers_applied,
                     'emergency_services': emergency_services,
                     'entertainment_items': session.get('entertainment_items', []),
                     'payment_reference_id': payment_reference_id,
@@ -1538,62 +1509,42 @@ def payment():
                 }
                 if not send_booking_confirmation_email(booking_email_data):
                     print(f"Failed to send booking confirmation email: {getattr(send_email, 'last_error', 'Unknown mail error')}")
-                
-                # Only clear session after successful commit
+
                 session.pop('selected_seats', None)
                 session.pop('boarding_point', None)
                 session.pop('dropping_point', None)
                 session.pop('bus_id', None)
                 session.pop('search_travel_date', None)
-                
+                session.pop('emergency_services', None)
+                session.pop('entertainment_items', None)
+
                 flash("Payment successful! Your booking is confirmed.", "success")
                 return redirect(url_for("user.booking_confirmation", booking_id=booking_id))
-                
+
             except mysql.connector.Error as db_error:
                 db.rollback()
                 print(f"Database error during booking creation: {db_error}")
                 flash("Failed to create booking. Please try again.", "error")
-                return render_template("payment.html", bus=bus, selected_seats=selected_seats,
-                                     boarding_point=session['boarding_point'],
-                                     dropping_point=session['dropping_point'],
-                                     total_amount=total_amount,
-                                     display_travel_date=display_travel_date,
-                                     contact_number=contact_number,
-                                     email=email)
-        
-        # GET request - Show payment form
-        return render_template("payment.html", bus=bus, selected_seats=selected_seats,
-                             boarding_point=session['boarding_point'],
-                             dropping_point=session['dropping_point'],
-                             total_amount=total_amount,
-                             display_travel_date=display_travel_date,
-                             contact_number="",
-                             email="",
-                             emergency_services=session.get('emergency_services', []),
-                             payment_method="",
-                             upi_id="",
-                             netbanking_id="",
-                             card_id="")
-    
+                return render_payment_form(contact_number, email, payment_method, upi_id, netbanking_id, card_id)
+
+        return render_payment_form()
+
     except mysql.connector.Error as db_error:
         print(f"Database error in payment route: {db_error}")
         flash("Database error occurred. Please try again.", "error")
         return redirect(url_for("user.search"))
-    
+
     except KeyError as key_error:
         print(f"Session key error: {key_error}")
         flash("Session error occurred. Please start over.", "error")
         return redirect(url_for("user.search"))
-    
+
     except Exception as e:
         print(f"Unexpected error in payment route: {e}")
-        # Surface the real exception text to the UI so we can fix the root cause.
-        # (This is safe for local development; no credentials are included in the error.)
         flash(f"An unexpected error occurred: {e}", "error")
         return redirect(url_for("user.search"))
-    
+
     finally:
-        # Always close database connections
         if cursor:
             cursor.close()
         if db:
@@ -2429,3 +2380,4 @@ def booking_success():
 # ================= RUN APP =================
 if __name__ == "__main__":
     app.run(debug=True, host='0.0.0.0', port=5000)
+

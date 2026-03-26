@@ -82,6 +82,10 @@
                                 </p>
                             </div>
                             <div class="col-md-4 text-md-end">
+                                <div class="small text-muted">Base Fare: &#8377;{{ "%.2f"|format(base_total_amount or total_amount) }}</div>
+                                {% if (total_discount or 0) > 0 %}
+                                    <div class="small text-success">Discount: -&#8377;{{ "%.2f"|format(total_discount) }}</div>
+                                {% endif %}
                                 <div class="h4 text-success">&#8377;{{ "%.2f"|format(total_amount) }}</div>
                                 <small class="text-muted">{{ selected_seats|length }} seat{{ 's' if selected_seats|length > 1 else '' }}</small>
                             </div>
@@ -106,6 +110,35 @@
                                 <div class="col-12">
                                     <label class="form-label">Passenger Email</label>
                                     <input type="email" name="email" class="form-control" value="{{ email or '' }}" required>
+                                </div>
+
+                                <div class="col-12">
+                                    <div class="card border-0 bg-light">
+                                        <div class="card-body">
+                                            <h6 class="mb-2"><i class="fas fa-tags me-2"></i>Available Offers</h6>
+                                            {% if first_travel_offer_eligible %}
+                                                <div class="form-check mb-2">
+                                                    <input class="form-check-input" type="checkbox" name="apply_first_travel_offer" id="firstTravelOffer" value="1" {% if apply_first_travel_offer %}checked{% endif %}>
+                                                    <label class="form-check-label" for="firstTravelOffer">
+                                                        First Travel Offer - 10% OFF
+                                                    </label>
+                                                </div>
+                                            {% else %}
+                                                <div class="text-muted small mb-2">First Travel Offer: Not eligible</div>
+                                            {% endif %}
+
+                                            {% if seasonal_books_offer_eligible %}
+                                                <div class="form-check mb-2">
+                                                    <input class="form-check-input" type="checkbox" name="apply_seasonal_books_offer" id="seasonalBooksOffer" value="1" {% if apply_seasonal_books_offer %}checked{% endif %}>
+                                                    <label class="form-check-label" for="seasonalBooksOffer">
+                                                        Seasonal Books Offer - 15% OFF
+                                                    </label>
+                                                </div>
+                                            {% else %}
+                                                <div class="text-muted small">Seasonal Books Offer: Select books + seasonal travel months</div>
+                                            {% endif %}
+                                        </div>
+                                    </div>
                                 </div>
 
                                 <div class="col-12">

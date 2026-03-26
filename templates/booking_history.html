@@ -167,6 +167,10 @@
                                                 <button class="btn btn-outline-danger btn-sm" onclick="cancelBooking({{ booking.id }})">
                                                     <i class="fas fa-times me-1"></i>Cancel
                                                 </button>
+                                                {% elif booking.status == 'cancelled' %}
+                                                <a href="{{ url_for('user.cancellation_details', booking_id=booking.id) }}" class="btn btn-outline-secondary btn-sm">
+                                                    <i class="fas fa-info-circle me-1"></i>View Cancellation Details
+                                                </a>
                                                 {% endif %}
                                                 {% if booking.status == 'confirmed' and booking.travel_date and booking.travel_date < current_date %}
                                                 <a href="{{ url_for('user.feedback', booking_id=booking.id) }}" class="btn btn-outline-info btn-sm">
